@@ -1,0 +1,10 @@
+# Ignorar lo que no es parte del proyecto
+node_modules
+.git
+.DS_Store
+Thumbs.db
+*.log
+desktop.ini
+.vscode
+.idea
+Intel
