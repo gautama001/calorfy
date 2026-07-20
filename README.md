@@ -1,50 +1,43 @@
-# Welcome to your Expo app 👋
+# Calorfy
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicación móvil para registrar comidas, estimar nutrientes a partir de fotografías y acompañar metas alimentarias. La base es Expo/React Native y apunta a iOS y Android, con lanzamiento inicial en App Store.
 
-## Get started
+## Estado
 
-1. Install dependencies
+Calorfy está en preparación para su primera versión pública. La rama de lanzamiento incorpora Supabase Auth, Postgres con Row Level Security y una Edge Function para mantener las credenciales de análisis fuera del cliente.
 
-   ```bash
-   npm install
-   ```
+## Desarrollo local
 
-2. Start the app
-
-   ```bash
-    npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Requisitos: Node.js 22 y npm.
 
 ```bash
-npm run reset-project
+npm ci
+cp .env.example .env
+npm run typecheck
+npm run test:ci
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Completá `.env` con la URL y la publishable key del proyecto Supabase. Nunca agregues una secret key o `service_role` a variables `EXPO_PUBLIC_*`.
 
-## Learn more
+## Supabase
 
-To learn more about developing your project with Expo, look at the following resources:
+Las migraciones y funciones se encuentran en `supabase/`.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npx supabase link --project-ref urqwsbzstbnktxxddhct
+npx supabase db push
+npx supabase functions deploy analyze-meal
+```
 
-## Join the community
+Los secretos `CLARIFAI_PAT`, `EDAMAM_APP_ID` y `EDAMAM_APP_KEY` deben configurarse directamente como secrets de Supabase.
 
-Join our community of developers creating universal apps.
+## Calidad
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run typecheck
+npm run test:ci
+npx expo config --type public
+```
+
+El roadmap de lanzamiento está documentado en `docs/IOS_LAUNCH_AUDIT.md` y el flujo de contribución en `docs/GITHUB_WORKFLOW.md`.

@@ -1,15 +1,21 @@
 {
   "expo": {
-    "name": "calorfy-lite",
+    "name": "Calorfy",
     "slug": "calorfy-lite",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "calorfy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.calorfy.calorfylite",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Calorfy usa la cámara para analizar las comidas que elijas fotografiar.",
+        "NSPhotoLibraryUsageDescription": "Calorfy accede a las fotos que elijas para analizar tus comidas."
+      }
     },
     "android": {
       "adaptiveIcon": {
