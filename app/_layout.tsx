@@ -38,6 +38,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)/callback" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="upload" options={{ title: 'Analizar comida' }} />
             <Stack.Screen name="results" options={{ title: 'Resultado' }} />
