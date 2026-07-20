@@ -22,3 +22,4 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:ci
       - run: npx expo config --type public
+      - run: npm run web:export

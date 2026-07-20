@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -11,6 +11,7 @@ import {
   Modal
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import CalendarWeek from '@/components/CalendarWeek';
 import CalorieBar from '@/components/CalorieBar';
 import MacroCircle from '@/components/MacroCircle';
@@ -31,6 +32,7 @@ export default function TodayScreen() {
   const [dailyLimit, setDailyLimit] = useState(2000);
   const [expanded, setExpanded] = useState<string | null>('meals');
   const [modalMeal, setModalMeal] = useState<any | null>(null);
+  const [showAddFoodModal, setShowAddFoodModal] = useState(false);
 
   const categories = ['meals', 'breakfast', 'lunch', 'snack', 'dinner'];
 
@@ -63,9 +65,9 @@ export default function TodayScreen() {
     });
   };
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     loadAll(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate]));
 
   const updateMealCategory = async (meal: any, newCategory: string) => {
     const stored = await AsyncStorage.getItem('meals');
@@ -145,10 +147,39 @@ export default function TodayScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => router.push('/upload')}
+        onPress={() => setShowAddFoodModal(true)}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      <Modal visible={showAddFoodModal} transparent animationType="fade" onRequestClose={() => setShowAddFoodModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Agregar comida</Text>
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => {
+                setShowAddFoodModal(false);
+                router.push('/catalog');
+              }}>
+              <Text style={styles.addOptionTitle}>Buscar en Calorfy</Text>
+              <Text style={styles.addOptionDescription}>Elegir de la base LATAM</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => {
+                setShowAddFoodModal(false);
+                router.push('/upload');
+              }}>
+              <Text style={styles.addOptionTitle}>Escanear con AI</Text>
+              <Text style={styles.addOptionDescription}>Analizar una foto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setShowAddFoodModal(false)}>
+              <Text>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!modalMeal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -195,5 +226,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
   modalSubtitle: { fontWeight: '600', marginBottom: 8 },
   modalOption: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  addOptionTitle: { color: '#173C32', fontSize: 16, fontWeight: '800' },
+  addOptionDescription: { color: '#6A7F78', fontSize: 13, marginTop: 3 },
   modalClose: { paddingVertical: 12, alignItems: 'center' }
 });

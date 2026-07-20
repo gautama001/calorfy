@@ -69,7 +69,15 @@ export default function TabLayout() {
         name="levels"
         options={{
           title: t('level'),
+          href: Platform.OS === 'web' ? null : undefined,
           tabBarIcon: ({ color, size }) => <Ionicons name="trophy-outline" size={size} color={color}/>
+        }}
+      />
+      <Tabs.Screen
+        name="catalog"
+        options={{
+          title: 'LATAM',
+          tabBarIcon: ({ color, size }) => <Ionicons name="search-outline" size={size} color={color}/>
         }}
       />
       <Tabs.Screen
