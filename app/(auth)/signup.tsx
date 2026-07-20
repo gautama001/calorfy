@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -22,9 +22,13 @@ export default function SignupScreen() {
     }
 
     setSubmitting(true);
+    const emailRedirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? `${window.location.origin}/login`
+      : undefined;
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
+      options: { emailRedirectTo },
     });
     setSubmitting(false);
 

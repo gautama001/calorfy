@@ -1,11 +1,28 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ImageBackground, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { supabase } from '@/lib/supabase';
+
+async function readImageAsBase64(uri: string) {
+  if (Platform.OS !== 'web') {
+    return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  }
+
+  const blob = await (await fetch(uri)).blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const value = String(reader.result ?? '');
+      resolve(value.includes(',') ? value.split(',', 2)[1] : value);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
 
 export default function UploadScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -47,9 +64,7 @@ export default function UploadScreen() {
 
     try {
       setIsAnalyzing(true);
-      const imageBase64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const imageBase64 = await readImageAsBase64(imageUri);
       const { data, error } = await supabase.functions.invoke('analyze-meal', {
         body: { imageBase64, mimeType: imageMimeType },
       });
