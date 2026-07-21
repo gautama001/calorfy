@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { getAuthErrorMessage, getEmailRedirectTo } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import AuthScreen from '@/components/AuthScreen';
 
 export default function SignupScreen() {
   const { t } = useTranslation();
-  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const { textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
   const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
   const inputStyle = [styles.input, { backgroundColor: cardColor, borderColor, color: textColor }];
   const [displayName, setDisplayName] = useState('');
@@ -73,43 +74,42 @@ export default function SignupScreen() {
 
   if (confirmationSent) {
     return (
-      <View style={[styles.container, { backgroundColor }]}>
+      <AuthScreen>
         <Text style={styles.eyebrow}>{t('last_step').toUpperCase()}</Text>
         <Text style={[styles.title, { color: textColor }]}>{t('confirm_email')}</Text>
         <Text style={[styles.description, { color: mutedColor }]}>{t('confirmation_sent_to', { email: email.trim().toLowerCase() })}</Text>
-        {notice && <Text style={styles.notice}>{notice}</Text>}
-        {error && <Text style={styles.error}>{error}</Text>}
-        <TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={resendConfirmation} disabled={submitting}>
+        {notice && <Text style={styles.notice} accessibilityLiveRegion="polite">{notice}</Text>}
+        {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={resendConfirmation} disabled={submitting}>
           {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('resend_email')}</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.replace('/login')}>
+        <TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => router.replace('/login')}>
           <Text style={styles.link}>{t('already_confirmed')}</Text>
         </TouchableOpacity>
-      </View>
+      </AuthScreen>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor }]}>
+    <AuthScreen>
       <Text style={styles.eyebrow}>{t('your_calorfy_account').toUpperCase()}</Text>
       <Text style={[styles.title, { color: textColor }]}>{t('create_account')}</Text>
       <TextInput style={inputStyle} placeholder={t('name')} placeholderTextColor={mutedColor} value={displayName} onChangeText={setDisplayName} autoCapitalize="words" autoComplete="name" />
       <TextInput style={inputStyle} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
       <TextInput style={inputStyle} placeholder={t('password_min_placeholder')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
       <TextInput style={inputStyle} placeholder={t('repeat_password')} placeholderTextColor={mutedColor} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry autoComplete="new-password" onSubmitEditing={handleSignup} />
-      {error && <Text style={styles.error}>{error}</Text>}
-      <TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={handleSignup} disabled={submitting}>
+      {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={handleSignup} disabled={submitting}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('create_account')}</Text>}
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.replace('/login')}>
+      <TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => router.replace('/login')}>
         <Text style={styles.link}>{t('already_have_account')}</Text>
       </TouchableOpacity>
-    </View>
+    </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
   eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
   title: { fontSize: 30, fontWeight: '900', marginTop: 6, marginBottom: 24, textAlign: 'center', color: '#173C32' },
   description: { color: '#557068', fontSize: 16, lineHeight: 23, textAlign: 'center', marginBottom: 18 },

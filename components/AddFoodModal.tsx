@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +16,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { type FoodSearchResult, searchFoods } from '@/lib/catalog';
 import {
   createDiaryClientEventId,
@@ -100,6 +103,11 @@ export default function AddFoodModal({
 }: Props) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { isDarkMode, textColor, borderColor } = useAppTheme();
+  const sheetColor = isDarkMode ? '#0B1F18' : '#F6FAF8';
+  const surfaceColor = isDarkMode ? '#153128' : '#FFFFFF';
+  const softColor = isDarkMode ? '#203C33' : '#E4EFEB';
+  const mutedColor = isDarkMode ? '#A7BBB4' : '#5B746C';
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodSearchResult[]>([]);
@@ -364,85 +372,85 @@ export default function AddFoodModal({
   const unitSuffix = unit === 'tbsp' ? t('tbsp_short') : unit;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close} accessibilityViewIsModal>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={[styles.sheet, { backgroundColor: sheetColor }]}>
+          <View style={[styles.handle, { backgroundColor: borderColor }]} />
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
             <View style={styles.header}>
               <View style={styles.headerCopy}>
-                <Text style={styles.title}>{t(selectedFood ? 'define_portion' : editingRecipe ? 'edit_recipe' : editingMealId ? 'edit_meal' : 'build_meal')}</Text>
-                <Text style={styles.subtitle}>{t(selectedFood ? 'define_portion_hint' : editingRecipe ? 'edit_recipe_hint' : editingMealId ? 'edit_meal_hint' : 'build_meal_hint')}</Text>
+                <Text style={[styles.title, { color: textColor }]}>{t(selectedFood ? 'define_portion' : editingRecipe ? 'edit_recipe' : editingMealId ? 'edit_meal' : 'build_meal')}</Text>
+                <Text style={[styles.subtitle, { color: mutedColor }]}>{t(selectedFood ? 'define_portion_hint' : editingRecipe ? 'edit_recipe_hint' : editingMealId ? 'edit_meal_hint' : 'build_meal_hint')}</Text>
               </View>
-              <TouchableOpacity style={styles.closeButton} onPress={close}>
-                <Text style={styles.closeText}>×</Text>
+              <TouchableOpacity style={[styles.closeButton, { backgroundColor: softColor }]} onPress={close} accessibilityRole="button" accessibilityLabel={t('cancel')} hitSlop={8}>
+                <Text style={[styles.closeText, { color: textColor }]}>×</Text>
               </TouchableOpacity>
             </View>
 
             {selectedFood && currentDraft ? (
               <>
-                <TouchableOpacity onPress={() => { setSelectedFood(null); setEditingDraftId(null); }}>
+                <TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => { setSelectedFood(null); setEditingDraftId(null); }}>
                   <Text style={styles.back}>‹ {t('back_to_meal')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.foodTitle}>{selectedFood.display_name}</Text>
+                <Text style={[styles.foodTitle, { color: textColor }]}>{selectedFood.display_name}</Text>
 
-                <Text style={styles.label}>{t('unit')}</Text>
+                <Text style={[styles.label, { color: mutedColor }]}>{t('unit')}</Text>
                 <View style={styles.selectorRow}>
                   {units.map((item) => (
-                    <TouchableOpacity key={item.value} style={[styles.unitButton, unit === item.value && styles.selected]} onPress={() => changeUnit(item.value)}>
-                      <Text style={[styles.selectorText, unit === item.value && styles.selectedText]}>{t(item.translationKey)}</Text>
+                    <TouchableOpacity key={item.value} accessibilityRole="radio" accessibilityState={{ selected: unit === item.value }} style={[styles.unitButton, { backgroundColor: surfaceColor, borderColor }, unit === item.value && styles.selected]} onPress={() => changeUnit(item.value)}>
+                      <Text style={[styles.selectorText, { color: mutedColor }, unit === item.value && styles.selectedText]}>{t(item.translationKey)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                <Text style={styles.label}>{t('amount')}</Text>
-                <View style={styles.quantityRow}>
-                  <TextInput style={styles.quantityInput} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" selectTextOnFocus />
-                  <Text style={styles.quantityUnit}>{unitSuffix}</Text>
+                <Text style={[styles.label, { color: mutedColor }]}>{t('amount')}</Text>
+                <View style={[styles.quantityRow, { backgroundColor: surfaceColor, borderColor }]}>
+                  <TextInput accessibilityLabel={t('amount')} style={[styles.quantityInput, { color: textColor }]} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" selectTextOnFocus />
+                  <Text style={[styles.quantityUnit, { color: mutedColor }]}>{unitSuffix}</Text>
                 </View>
                 <View style={styles.steps}>
                   {quickSteps.map((step) => (
-                    <TouchableOpacity key={step} style={styles.stepButton} onPress={() => adjustQuantity(step)}>
-                      <Text style={styles.stepText}>{step > 0 ? '+' : ''}{step} {unitSuffix}</Text>
+                    <TouchableOpacity key={step} accessibilityRole="button" accessibilityLabel={`${step > 0 ? '+' : ''}${step} ${unitSuffix}`} style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => adjustQuantity(step)}>
+                      <Text style={[styles.stepText, { color: textColor }]}>{step > 0 ? '+' : ''}{step} {unitSuffix}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                {unit !== 'g' && <Text style={styles.equivalence}>{t('equivalence_used')}: {currentDraft.grams.toFixed(1)} g</Text>}
+                {unit !== 'g' && <Text style={[styles.equivalence, { color: mutedColor }]}>{t('equivalence_used')}: {currentDraft.grams.toFixed(1)} g</Text>}
 
                 <View style={styles.macroCard}>
                   <Text style={styles.calories}>{Math.round(currentDraft.calories)} kcal</Text>
                   <Text style={styles.macroText}>P {currentDraft.protein.toFixed(1)} g · C {currentDraft.carbs.toFixed(1)} g · G {currentDraft.fat.toFixed(1)} g</Text>
                 </View>
-                {error && <Text style={styles.error}>{error}</Text>}
-                <TouchableOpacity style={styles.stageButton} onPress={stageFood}>
+                {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+                <TouchableOpacity accessibilityRole="button" style={styles.stageButton} onPress={stageFood}>
                   <Text style={styles.stageText}>{editingDraftId ? t('update_food') : `+ ${t('add_to_meal')}`}</Text>
                 </TouchableOpacity>
               </>
             ) : selectedRecipe ? (
               <>
-                <TouchableOpacity onPress={() => setSelectedRecipe(null)}>
+                <TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => setSelectedRecipe(null)}>
                   <Text style={styles.back}>‹ {t('back_to_meal')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.foodTitle}>{selectedRecipe.name}</Text>
-                <Text style={styles.recipeYield}>{t('recipe_yield_message', { amount: selectedRecipe.yieldQuantity, unit: selectedRecipe.yieldLabel })}</Text>
+                <Text style={[styles.foodTitle, { color: textColor }]}>{selectedRecipe.name}</Text>
+                <Text style={[styles.recipeYield, { color: mutedColor }]}>{t('recipe_yield_message', { amount: selectedRecipe.yieldQuantity, unit: selectedRecipe.yieldLabel })}</Text>
 
-                <Text style={styles.label}>{t('consumed_amount')}</Text>
-                <View style={styles.quantityRow}>
-                  <TextInput style={styles.quantityInput} value={recipeQuantity} onChangeText={setRecipeQuantity} keyboardType="decimal-pad" selectTextOnFocus />
-                  <Text style={styles.quantityUnit}>{selectedRecipe.yieldLabel}</Text>
+                <Text style={[styles.label, { color: mutedColor }]}>{t('consumed_amount')}</Text>
+                <View style={[styles.quantityRow, { backgroundColor: surfaceColor, borderColor }]}>
+                  <TextInput accessibilityLabel={t('consumed_amount')} style={[styles.quantityInput, { color: textColor }]} value={recipeQuantity} onChangeText={setRecipeQuantity} keyboardType="decimal-pad" selectTextOnFocus />
+                  <Text style={[styles.quantityUnit, { color: mutedColor }]}>{selectedRecipe.yieldLabel}</Text>
                 </View>
                 <View style={styles.steps}>
-                  <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(Math.max(0.1, (Number(recipeQuantity) || 1) - 1)))}><Text style={styles.stepText}>−1</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity('1')}><Text style={styles.stepText}>1</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(Math.min(selectedRecipe.yieldQuantity, (Number(recipeQuantity) || 0) + 1)))}><Text style={styles.stepText}>+1</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(selectedRecipe.yieldQuantity))}><Text style={styles.stepText}>{t('all')}</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(Math.max(0.1, (Number(recipeQuantity) || 1) - 1)))}><Text style={[styles.stepText, { color: textColor }]}>−1</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity('1')}><Text style={[styles.stepText, { color: textColor }]}>1</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(Math.min(selectedRecipe.yieldQuantity, (Number(recipeQuantity) || 0) + 1)))}><Text style={[styles.stepText, { color: textColor }]}>+1</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(selectedRecipe.yieldQuantity))}><Text style={[styles.stepText, { color: textColor }]}>{t('all')}</Text></TouchableOpacity>
                 </View>
                 <View style={styles.macroCard}>
                   <Text style={styles.calories}>{Math.round(selectedRecipe.calories * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity))} kcal</Text>
                   <Text style={styles.macroText}>P {(selectedRecipe.protein * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity)).toFixed(1)} g · C {(selectedRecipe.carbs * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity)).toFixed(1)} g · G {(selectedRecipe.fat * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity)).toFixed(1)} g</Text>
                 </View>
-                {error && <Text style={styles.error}>{error}</Text>}
-                <TouchableOpacity style={styles.stageButton} onPress={stageRecipe}>
+                {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+                <TouchableOpacity accessibilityRole="button" style={styles.stageButton} onPress={stageRecipe}>
                   <Text style={styles.stageText}>+ {t('add_recipe_to_meal')}</Text>
                 </TouchableOpacity>
               </>
@@ -450,32 +458,32 @@ export default function AddFoodModal({
               <>
                 {editingRecipe && (
                   <View style={styles.recipeEditor}>
-                    <Text style={styles.label}>{t('recipe_details')}</Text>
-                    <TextInput style={styles.recipeInput} value={recipeEditName} onChangeText={setRecipeEditName} maxLength={100} placeholder={t('name')} />
+                    <Text style={[styles.label, { color: mutedColor }]}>{t('recipe_details')}</Text>
+                    <TextInput style={[styles.recipeInput, { backgroundColor: surfaceColor, borderColor, color: textColor }]} placeholderTextColor={mutedColor} value={recipeEditName} onChangeText={setRecipeEditName} maxLength={100} placeholder={t('name')} />
                     <View style={styles.recipeEditorRow}>
-                      <TextInput style={[styles.recipeInput, styles.recipeYieldInput]} value={recipeEditYield} onChangeText={setRecipeEditYield} keyboardType="decimal-pad" selectTextOnFocus />
-                      <TextInput style={[styles.recipeInput, styles.recipeLabelInput]} value={recipeEditLabel} onChangeText={setRecipeEditLabel} maxLength={30} placeholder={t('servings').toLowerCase()} />
+                      <TextInput style={[styles.recipeInput, styles.recipeYieldInput, { backgroundColor: surfaceColor, borderColor, color: textColor }]} value={recipeEditYield} onChangeText={setRecipeEditYield} keyboardType="decimal-pad" selectTextOnFocus />
+                      <TextInput style={[styles.recipeInput, styles.recipeLabelInput, { backgroundColor: surfaceColor, borderColor, color: textColor }]} placeholderTextColor={mutedColor} value={recipeEditLabel} onChangeText={setRecipeEditLabel} maxLength={30} placeholder={t('servings').toLowerCase()} />
                     </View>
                   </View>
                 )}
                 {drafts.length > 0 && (
                   <View style={styles.draftSection}>
                     <View style={styles.sectionHeader}>
-                      <Text style={styles.sectionTitle}>{t('preliminary_list')}</Text>
+                      <Text style={[styles.sectionTitle, { color: textColor }]}>{t('preliminary_list')}</Text>
                       <View style={styles.countBadge}><Text style={styles.countText}>{drafts.length}</Text></View>
                     </View>
                     {drafts.map((draft) => {
                       const suffix = draft.unit === 'tbsp' ? t('tbsp_short') : draft.unit;
                       return (
-                        <View key={draft.draftId} style={styles.draftCard}>
+                        <View key={draft.draftId} style={[styles.draftCard, { backgroundColor: surfaceColor, borderColor }]}>
                           <TouchableOpacity style={styles.draftInfo} onPress={() => editDraft(draft)}>
-                            <Text style={styles.draftName}>{draft.food.display_name}</Text>
-                            <Text style={styles.draftMacros}>{Math.round(draft.calories)} kcal · P {draft.protein.toFixed(1)} · C {draft.carbs.toFixed(1)} · G {draft.fat.toFixed(1)}</Text>
+                            <Text style={[styles.draftName, { color: textColor }]}>{draft.food.display_name}</Text>
+                            <Text style={[styles.draftMacros, { color: mutedColor }]}>{Math.round(draft.calories)} kcal · P {draft.protein.toFixed(1)} · C {draft.carbs.toFixed(1)} · G {draft.fat.toFixed(1)}</Text>
                           </TouchableOpacity>
                           <View style={styles.draftControls}>
-                            <TouchableOpacity style={styles.roundButton} onPress={() => adjustDraft(draft, -1)}><Text style={styles.roundText}>−</Text></TouchableOpacity>
-                            <Text style={styles.draftQuantity}>{formattedQuantity(draft.quantity)} {suffix}</Text>
-                            <TouchableOpacity style={styles.roundButton} onPress={() => adjustDraft(draft, 1)}><Text style={styles.roundText}>+</Text></TouchableOpacity>
+                            <TouchableOpacity style={[styles.roundButton, { backgroundColor: softColor }]} onPress={() => adjustDraft(draft, -1)}><Text style={[styles.roundText, { color: textColor }]}>−</Text></TouchableOpacity>
+                            <Text style={[styles.draftQuantity, { color: textColor }]}>{formattedQuantity(draft.quantity)} {suffix}</Text>
+                            <TouchableOpacity style={[styles.roundButton, { backgroundColor: softColor }]} onPress={() => adjustDraft(draft, 1)}><Text style={[styles.roundText, { color: textColor }]}>+</Text></TouchableOpacity>
                             <TouchableOpacity onPress={() => setDrafts((current) => current.filter((item) => item.draftId !== draft.draftId))}>
                               <Text style={styles.removeText}>{t('remove')}</Text>
                             </TouchableOpacity>
@@ -490,98 +498,100 @@ export default function AddFoodModal({
                   </View>
                 )}
 
-                <Text style={styles.label}>{t(drafts.length ? 'add_another_food' : 'search_food')}</Text>
-                <View style={styles.searchBox}>
+                <Text style={[styles.label, { color: mutedColor }]}>{t(drafts.length ? 'add_another_food' : 'search_food')}</Text>
+                <View style={[styles.searchBox, { backgroundColor: surfaceColor, borderColor }]}>
                   <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { color: textColor }]}
                     value={query}
                     onChangeText={(text) => { setQuery(text); setError(null); }}
                     placeholder={t('search_three_letters')}
+                    placeholderTextColor={mutedColor}
+                    accessibilityLabel={t('search_food')}
                     returnKeyType="search"
                     autoFocus={drafts.length === 0 && shortcuts.length === 0 && recipes.length === 0}
                   />
                   {loading ? <ActivityIndicator color="#00A77D" /> : <Text style={styles.searchHint}>{query.trim().length}/3</Text>}
                 </View>
-                {error && <Text style={styles.error}>{error}</Text>}
+                {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
                 {drafts.length === 0 && query.trim().length < 3 && (recipes.length > 0 || shortcuts.length > 0) && (
                   <View style={styles.memorySection}>
                     {recipes.length > 0 && (
                       <>
-                        <Text style={styles.memoryTitle}>{t('personal_recipes')}</Text>
-                        <Text style={styles.memorySubtitle}>{t('recipe_consumption_hint')}</Text>
+                        <Text style={[styles.memoryTitle, { color: textColor }]}>{t('personal_recipes')}</Text>
+                        <Text style={[styles.memorySubtitle, { color: mutedColor }]}>{t('recipe_consumption_hint')}</Text>
                         {recipes.map((recipe) => (
-                          <View key={recipe.id} style={styles.memoryCard}>
+                          <View key={recipe.id} style={[styles.memoryCard, { backgroundColor: surfaceColor, borderColor }]}>
                             <TouchableOpacity style={styles.memoryCopy} onPress={() => chooseRecipe(recipe)}>
-                              <Text style={styles.memoryName} numberOfLines={2}>{recipe.name}</Text>
-                              <Text style={styles.memoryMeta}>{t('yields')} {recipe.yieldQuantity} {recipe.yieldLabel} · {Math.round(recipe.calories / recipe.yieldQuantity)} kcal {t('per_unit')}</Text>
+                              <Text style={[styles.memoryName, { color: textColor }]} numberOfLines={2}>{recipe.name}</Text>
+                              <Text style={[styles.memoryMeta, { color: mutedColor }]}>{t('yields')} {recipe.yieldQuantity} {recipe.yieldLabel} · {Math.round(recipe.calories / recipe.yieldQuantity)} kcal {t('per_unit')}</Text>
                             </TouchableOpacity>
                             <View style={styles.recipeActions}>
                               <TouchableOpacity onPress={() => chooseRecipe(recipe)}><Text style={styles.memoryAction}>{t('use')}</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => beginRecipeEdit(recipe)}><Text style={styles.recipeEditAction}>{t('edit')}</Text></TouchableOpacity>
+                              <TouchableOpacity onPress={() => beginRecipeEdit(recipe)}><Text style={[styles.recipeEditAction, { color: mutedColor }]}>{t('edit')}</Text></TouchableOpacity>
                               <TouchableOpacity onPress={() => confirmDeleteRecipe(recipe)}><Text style={styles.recipeDeleteAction}>×</Text></TouchableOpacity>
                             </View>
                           </View>
                         ))}
                       </>
                     )}
-                    {shortcuts.length > 0 && <Text style={[styles.memoryTitle, recipes.length > 0 && styles.memoryTitleSpaced]}>{t('favorites_recent')}</Text>}
-                    {shortcuts.length > 0 && <Text style={styles.memorySubtitle}>{t('reuse_complete_meal')}</Text>}
+                    {shortcuts.length > 0 && <Text style={[styles.memoryTitle, { color: textColor }, recipes.length > 0 && styles.memoryTitleSpaced]}>{t('favorites_recent')}</Text>}
+                    {shortcuts.length > 0 && <Text style={[styles.memorySubtitle, { color: mutedColor }]}>{t('reuse_complete_meal')}</Text>}
                     {shortcuts.map((meal) => (
-                      <TouchableOpacity key={meal.id} style={styles.memoryCard} onPress={() => loadSavedMeal(meal)}>
+                      <TouchableOpacity key={meal.id} style={[styles.memoryCard, { backgroundColor: surfaceColor, borderColor }]} onPress={() => loadSavedMeal(meal)}>
                         <View style={styles.memoryCopy}>
-                          <Text style={styles.memoryName} numberOfLines={2}>{meal.isFavorite ? '★ ' : ''}{meal.name}</Text>
-                          <Text style={styles.memoryMeta}>{meal.items.length} {t(meal.items.length === 1 ? 'food_item' : 'food_items')} · {Math.round(meal.calories)} kcal</Text>
+                          <Text style={[styles.memoryName, { color: textColor }]} numberOfLines={2}>{meal.isFavorite ? '★ ' : ''}{meal.name}</Text>
+                          <Text style={[styles.memoryMeta, { color: mutedColor }]}>{meal.items.length} {t(meal.items.length === 1 ? 'food_item' : 'food_items')} · {Math.round(meal.calories)} kcal</Text>
                         </View>
                         <Text style={styles.memoryAction}>{t('use')}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
-                {!loading && searched && !error && results.length === 0 && <Text style={styles.empty}>{t('food_not_found_search')}</Text>}
+                {!loading && searched && !error && results.length === 0 && <Text style={[styles.empty, { color: mutedColor, backgroundColor: softColor }]}>{t('food_not_found_search')}</Text>}
                 <View style={styles.results}>
                   {results.map((food) => (
-                    <TouchableOpacity key={food.id} style={styles.foodCard} onPress={() => chooseFood(food)}>
+                    <TouchableOpacity key={food.id} style={[styles.foodCard, { backgroundColor: surfaceColor, borderColor }]} onPress={() => chooseFood(food)}>
                       <View style={styles.foodHeader}>
-                        <Text style={styles.foodName}>{food.display_name}</Text>
+                        <Text style={[styles.foodName, { color: textColor }]}>{food.display_name}</Text>
                         <Text style={styles.addText}>{t('add')}</Text>
                       </View>
-                      <Text style={styles.foodMeta}>{food.default_portion_g ?? 100} g {t('suggested').toLowerCase()}</Text>
-                      <Text style={styles.foodMacros}>{Math.round(Number(food.energy_kcal ?? 0))} kcal · P {Number(food.protein_g ?? 0).toFixed(1)} · C {Number(food.carbohydrate_g ?? 0).toFixed(1)} · G {Number(food.fat_g ?? 0).toFixed(1)} {t('per_100g')}</Text>
+                      <Text style={[styles.foodMeta, { color: mutedColor }]}>{food.default_portion_g ?? 100} g {t('suggested').toLowerCase()}</Text>
+                      <Text style={[styles.foodMacros, { color: mutedColor }]}>{Math.round(Number(food.energy_kcal ?? 0))} kcal · P {Number(food.protein_g ?? 0).toFixed(1)} · C {Number(food.carbohydrate_g ?? 0).toFixed(1)} · G {Number(food.fat_g ?? 0).toFixed(1)} {t('per_100g')}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 {drafts.length > 0 && (
                   <>
-                    <Text style={styles.label}>{t('meal_time')}</Text>
+                    <Text style={[styles.label, { color: mutedColor }]}>{t('meal_time')}</Text>
                     <View style={styles.selectorRow}>
                       {categories.map((item) => (
-                        <TouchableOpacity key={item} style={[styles.categoryButton, category === item && styles.selected]} onPress={() => setCategory(item)}>
-                          <Text style={[styles.selectorText, category === item && styles.selectedText]}>{t(item)}</Text>
+                        <TouchableOpacity key={item} accessibilityRole="radio" accessibilityState={{ selected: category === item }} style={[styles.categoryButton, { backgroundColor: surfaceColor, borderColor }, category === item && styles.selected]} onPress={() => setCategory(item)}>
+                          <Text style={[styles.selectorText, { color: mutedColor }, category === item && styles.selectedText]}>{t(item)}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
-                    <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={saveMeal} disabled={saving}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: saving, busy: saving }} style={[styles.saveButton, saving && styles.disabled]} onPress={saveMeal} disabled={saving}>
                       {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t(editingRecipe ? 'update_recipe' : editingMealId ? 'update_meal' : 'save_complete_meal')}</Text>}
                     </TouchableOpacity>
                   </>
                 )}
 
                 <TouchableOpacity
-                  style={styles.scanButton}
+                  style={[styles.scanButton, { backgroundColor: softColor }]}
                   onPress={() => {
                     close();
                     router.push({ pathname: '/scan', params: { category } } as never);
                   }}
                 >
-                  <Text style={styles.scanTitle}>{t('scan_with_ai')}</Text>
-                  <Text style={styles.scanDescription}>{t('scan_continue')}</Text>
+                  <Text style={[styles.scanTitle, { color: textColor }]}>{t('scan_with_ai')}</Text>
+                  <Text style={[styles.scanDescription, { color: mutedColor }]}>{t('scan_continue')}</Text>
                 </TouchableOpacity>
               </>
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

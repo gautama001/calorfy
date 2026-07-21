@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import * as Linking from 'expo-linking';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import { type Href, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { createSessionFromUrl, getAuthErrorMessage } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import AuthScreen from '@/components/AuthScreen';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
-  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const { textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
   const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
   const inputStyle = [styles.input, { backgroundColor: cardColor, borderColor, color: textColor }];
   const url = Linking.useURL();
@@ -49,12 +50,11 @@ export default function ResetPasswordScreen() {
     finally { setSubmitting(false); }
   };
 
-  if (!ready && !error) return <View style={[styles.container, { backgroundColor }]}><ActivityIndicator size="large" color="#00A77D" /><Text style={[styles.description, { color: mutedColor }]}>{t('validating_secure_link')}</Text></View>;
-  return <View style={[styles.container, { backgroundColor }]}><Text style={styles.eyebrow}>{t('security').toUpperCase()}</Text><Text style={[styles.title, { color: textColor }]}>{t('new_password')}</Text>{ready ? <><TextInput style={inputStyle} placeholder={t('new_password_placeholder')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" /><TextInput style={inputStyle} placeholder={t('repeat_password')} placeholderTextColor={mutedColor} value={confirmation} onChangeText={setConfirmation} secureTextEntry autoComplete="new-password" onSubmitEditing={updatePassword} />{error ? <Text style={styles.error}>{error}</Text> : null}<TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={updatePassword} disabled={submitting}>{submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('save_password')}</Text>}</TouchableOpacity></> : <><Text style={styles.error}>{error}</Text><TouchableOpacity style={styles.button} onPress={() => router.replace('/forgot-password' as Href)}><Text style={styles.buttonText}>{t('request_another_link')}</Text></TouchableOpacity></>}</View>;
+  if (!ready && !error) return <AuthScreen><ActivityIndicator size="large" color="#00A77D" /><Text style={[styles.description, { color: mutedColor }]}>{t('validating_secure_link')}</Text></AuthScreen>;
+  return <AuthScreen><Text style={styles.eyebrow}>{t('security').toUpperCase()}</Text><Text style={[styles.title, { color: textColor }]}>{t('new_password')}</Text>{ready ? <><TextInput style={inputStyle} placeholder={t('new_password_placeholder')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" /><TextInput style={inputStyle} placeholder={t('repeat_password')} placeholderTextColor={mutedColor} value={confirmation} onChangeText={setConfirmation} secureTextEntry autoComplete="new-password" onSubmitEditing={updatePassword} />{error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}<TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={updatePassword} disabled={submitting}>{submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('save_password')}</Text>}</TouchableOpacity></> : <><Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text><TouchableOpacity accessibilityRole="button" style={styles.button} onPress={() => router.replace('/forgot-password' as Href)}><Text style={styles.buttonText}>{t('request_another_link')}</Text></TouchableOpacity></>}</AuthScreen>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
   eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
   title: { fontSize: 30, fontWeight: '900', marginTop: 6, marginBottom: 24, textAlign: 'center', color: '#173C32' },
   description: { color: '#557068', fontSize: 15, textAlign: 'center', marginTop: 14 },

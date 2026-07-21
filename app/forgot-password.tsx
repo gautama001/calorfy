@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { getAuthErrorMessage, getEmailRedirectTo } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import AuthScreen from '@/components/AuthScreen';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
-  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const { textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
   const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -32,11 +33,10 @@ export default function ForgotPasswordScreen() {
     } finally { setSubmitting(false); }
   };
 
-  return <View style={[styles.container, { backgroundColor }]}><Text style={styles.eyebrow}>{t('security').toUpperCase()}</Text><Text style={[styles.title, { color: textColor }]}>{t('recover_password')}</Text><Text style={[styles.description, { color: mutedColor }]}>{t('recover_password_intro')}</Text><TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" onSubmitEditing={sendReset} />{message ? <Text style={styles.notice}>{message}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}<TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={sendReset} disabled={submitting}>{submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('send_link')}</Text>}</TouchableOpacity><TouchableOpacity onPress={() => router.replace('/login')}><Text style={styles.link}>{t('back_to_sign_in')}</Text></TouchableOpacity></View>;
+  return <AuthScreen><Text style={styles.eyebrow}>{t('security').toUpperCase()}</Text><Text style={[styles.title, { color: textColor }]}>{t('recover_password')}</Text><Text style={[styles.description, { color: mutedColor }]}>{t('recover_password_intro')}</Text><TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" onSubmitEditing={sendReset} />{message ? <Text style={styles.notice} accessibilityLiveRegion="polite">{message}</Text> : null}{error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}<TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={sendReset} disabled={submitting}>{submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('send_link')}</Text>}</TouchableOpacity><TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => router.replace('/login')}><Text style={styles.link}>{t('back_to_sign_in')}</Text></TouchableOpacity></AuthScreen>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
   eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
   title: { fontSize: 30, fontWeight: '900', marginTop: 6, textAlign: 'center', color: '#173C32' },
   description: { color: '#557068', fontSize: 15, lineHeight: 22, textAlign: 'center', marginVertical: 22 },
