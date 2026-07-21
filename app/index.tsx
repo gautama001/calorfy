@@ -53,7 +53,7 @@ export default function HomeScreen() {
       >
         {SLIDES.map((slide) => (
           <View key={slide.key} style={styles.slide}>
-            <Image source={slide.image} style={styles.image} />
+            <Image source={slide.image} style={styles.image} resizeMode="cover" />
           </View>
         ))}
       </ScrollView>
@@ -93,7 +93,6 @@ const styles = StyleSheet.create({
   image: {
     width,
     height: height * 0.75,
-    resizeMode: 'cover',
   },
   textContainer: {
     padding: 24,

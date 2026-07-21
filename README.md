@@ -28,6 +28,7 @@ Las migraciones y funciones se encuentran en `supabase/`.
 npx supabase link --project-ref urqwsbzstbnktxxddhct
 npx supabase db push
 npx supabase functions deploy analyze-meal
+npx supabase functions deploy delete-account
 ```
 
 Los secretos `CLARIFAI_PAT`, `EDAMAM_APP_ID` y `EDAMAM_APP_KEY` deben configurarse directamente como secrets de Supabase.
@@ -40,4 +41,4 @@ npm run test:ci
 npx expo config --type public
 ```
 
-El roadmap de lanzamiento está documentado en `docs/IOS_LAUNCH_AUDIT.md` y el flujo de contribución en `docs/GITHUB_WORKFLOW.md`.
+El estado de lanzamiento está documentado en `docs/IOS_LAUNCH_AUDIT.md`, la matriz de prueba iOS en `docs/IOS_TEST_MATRIX.md` y el flujo de contribución en `docs/GITHUB_WORKFLOW.md`.

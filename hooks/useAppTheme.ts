@@ -1,4 +1,4 @@
-import { useTheme } from '@react-navigation/native';
+import { useTheme } from 'expo-router';
 
 export function useAppTheme() {
   const { colors, dark } = useTheme();

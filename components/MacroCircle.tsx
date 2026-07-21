@@ -17,7 +17,7 @@ export default function MacroCircle({ label, value, goal, color }: Props) {
   const center = size / 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const percentage = Math.min(value / goal, 1);
+  const percentage = goal > 0 ? Math.min(Math.max(value / goal, 0), 1) : 0;
   const strokeDashoffset = circumference * (1 - percentage);
 
   return (
@@ -41,8 +41,7 @@ export default function MacroCircle({ label, value, goal, color }: Props) {
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
-          rotation="-90"
-          origin={`${center}, ${center}`}
+          transform={`rotate(-90 ${center} ${center})`}
         />
       </Svg>
       <View style={styles.centerText}>

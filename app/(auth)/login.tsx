@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { getAuthErrorMessage } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
+  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -13,8 +18,8 @@ export default function LoginScreen() {
   const router = useRouter();
 
   const handleLogin = async () => {
-    if (!supabase || !isSupabaseConfigured) return setError('Faltan las variables públicas de Supabase.');
-    if (!email.trim() || !password) return setError('Ingresá tu email y contraseña.');
+    if (!supabase || !isSupabaseConfigured) return setError(t('auth_setup_missing'));
+    if (!email.trim() || !password) return setError(t('auth_enter_credentials'));
 
     setSubmitting(true);
     setError(null);
@@ -26,39 +31,43 @@ export default function LoginScreen() {
       if (loginError) throw loginError;
       router.replace('/(tabs)');
     } catch (loginError) {
-      setError(getAuthErrorMessage(loginError));
+      setError(getAuthErrorMessage(loginError, t));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor }]}>
       <Text style={styles.eyebrow}>CALORFY</Text>
-      <Text style={styles.title}>Bienvenido de nuevo</Text>
-      <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
-      <TextInput style={styles.input} placeholder="Contraseña" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" onSubmitEditing={handleLogin} />
+      <Text style={[styles.title, { color: textColor }]}>{t('welcome_back')}</Text>
+      <TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
+      <TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder={t('password')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" onSubmitEditing={handleLogin} />
       {error && <Text style={styles.error}>{error}</Text>}
       <TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={handleLogin} disabled={submitting}>
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Ingresar</Text>}
+        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('sign_in')}</Text>}
       </TouchableOpacity>
-      <Text style={styles.text}>¿Todavía no tenés una cuenta?</Text>
-      <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => router.push('/signup')}>
-        <Text style={[styles.buttonText, styles.secondaryButtonText]}>Crear cuenta</Text>
+      <TouchableOpacity onPress={() => router.push('/forgot-password' as Href)}>
+        <Text style={styles.forgotLink}>{t('forgot_password')}</Text>
+      </TouchableOpacity>
+      <Text style={[styles.text, { color: mutedColor }]}>{t('no_account_yet')}</Text>
+      <TouchableOpacity style={[styles.button, styles.secondaryButton, { backgroundColor: cardColor }]} onPress={() => router.push('/signup')}>
+        <Text style={[styles.buttonText, styles.secondaryButtonText]}>{t('create_account')}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center', backgroundColor: '#F7FBF9' },
+  container: { flex: 1, padding: 24, justifyContent: 'center' },
   eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
   title: { fontSize: 30, fontWeight: '900', marginTop: 6, marginBottom: 28, textAlign: 'center', color: '#173C32' },
-  input: { borderWidth: 1, borderColor: '#C9DDD6', borderRadius: 16, paddingHorizontal: 16, minHeight: 52, fontSize: 16, marginBottom: 12, backgroundColor: '#fff' },
+  input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 52, fontSize: 16, marginBottom: 12 },
   button: { backgroundColor: '#00A77D', minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   disabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   text: { textAlign: 'center', marginTop: 22, color: '#557068', fontSize: 15 },
+  forgotLink: { color: '#008F6D', textAlign: 'center', marginTop: 16, fontWeight: '700' },
   secondaryButton: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#00A77D' },
   secondaryButtonText: { color: '#00A77D' },
   error: { color: '#B42318', textAlign: 'center', lineHeight: 20, marginBottom: 4 },

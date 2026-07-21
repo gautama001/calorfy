@@ -1,12 +1,11 @@
-import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
-import type { ComponentProps } from 'react';
+import { Pressable } from 'react-native';
 
-type HapticTabProps = ComponentProps<typeof PlatformPressable>;
-
-export function HapticTab(props: HapticTabProps) {
+// Expo Router and React Navigation currently expose equivalent tab-button props
+// from separate type entry points. Keep this adapter permissive until they converge.
+export function HapticTab({ pressColor: _pressColor, pressOpacity: _pressOpacity, hoverEffect: _hoverEffect, ...props }: any) {
   return (
-    <PlatformPressable
+    <Pressable
       {...props}
       onPressIn={(ev) => {
         if (process.env.EXPO_OS === 'ios') {

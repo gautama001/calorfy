@@ -7,12 +7,12 @@
     "icon": "./assets/images/icon.png",
     "scheme": "calorfy",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.calorfy.calorfylite",
       "buildNumber": "1",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Calorfy usa la cámara para analizar las comidas que elijas fotografiar.",
         "NSPhotoLibraryUsageDescription": "Calorfy accede a las fotos que elijas para analizar tus comidas."
       }
@@ -37,7 +37,11 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F3F7F5",
+          "dark": {
+            "image": "./assets/images/splash-icon.png",
+            "backgroundColor": "#0B1713"
+          }
         }
       ]
     ],

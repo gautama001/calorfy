@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/context/AuthContext';
@@ -36,6 +38,54 @@ import {
 const GREEN = '#00A77D';
 const DARK_GREEN = '#173C32';
 type ChartRange = '7d' | '1m' | '12m';
+
+type ChartDataset = {
+  data: number[];
+  color?: (opacity?: number) => string;
+};
+
+function WebChartDots({
+  data,
+  width,
+  height,
+  paddingTop,
+  paddingRight,
+  stroke,
+}: {
+  data: ChartDataset[];
+  width: number;
+  height: number;
+  paddingTop: number;
+  paddingRight: number;
+  stroke: string;
+}) {
+  const values = data.flatMap((dataset) => dataset.data);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const scale = maximum - minimum || 1;
+  const pointCount = Math.max(...data.map((dataset) => dataset.data.length), 1);
+
+  return (
+    <>
+      {data.flatMap((dataset, datasetIndex) => dataset.data.map((value, index) => {
+        const cx = paddingRight + (index * (width - paddingRight)) / pointCount;
+        const scaledHeight = height * ((value - minimum) / scale);
+        const cy = ((height - scaledHeight) / 4) * 3 + paddingTop;
+        return (
+          <Circle
+            key={`${datasetIndex}-${index}`}
+            cx={cx}
+            cy={cy}
+            r={4}
+            fill={dataset.color?.(0.9) ?? GREEN}
+            stroke={stroke}
+            strokeWidth={2}
+          />
+        );
+      }))}
+    </>
+  );
+}
 
 function rangeStartDate(range: ChartRange) {
   const date = new Date(`${localDateString()}T12:00:00`);
@@ -389,9 +439,15 @@ export default function GoalsScreen() {
                 formatYLabel={(value) => Math.round(Number(value)).toString()}
                 withShadow={false}
                 withInnerLines
+                withDots={Platform.OS !== 'web'}
+                decorator={Platform.OS === 'web' ? (properties: Omit<React.ComponentProps<typeof WebChartDots>, 'stroke'>) => (
+                  <WebChartDots {...properties} stroke={chartSurface} />
+                ) : undefined}
                 chartConfig={{
                   backgroundGradientFrom: chartSurface, backgroundGradientTo: chartSurface, decimalPlaces: 0,
                   color: (opacity = 1) => isDarkMode ? `rgba(224, 241, 235, ${opacity})` : `rgba(23, 60, 50, ${opacity})`, labelColor: () => mutedColor,
+                  propsForHorizontalLabels: Platform.OS === 'web' ? { origin: undefined } : undefined,
+                  propsForVerticalLabels: Platform.OS === 'web' ? { origin: undefined } : undefined,
                   propsForDots: { r: '4', strokeWidth: '2', stroke: chartSurface },
                   propsForBackgroundLines: { stroke: gridColor, strokeDasharray: '4 5' },
                 }}
@@ -522,7 +578,13 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 11, color: '#71877F', fontWeight: '700' },
   rangeSelector: { flexDirection: 'row', backgroundColor: '#F0F6F4', borderRadius: 12, padding: 4, marginTop: 15 },
   rangeButton: { flex: 1, minHeight: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  rangeButtonActive: { backgroundColor: '#FFFFFF', shadowColor: '#173C32', shadowOpacity: 0.08, shadowRadius: 4, elevation: 1 },
+  rangeButtonActive: {
+    backgroundColor: '#FFFFFF',
+    ...Platform.select({
+      web: { boxShadow: '0 2px 8px rgba(23, 60, 50, 0.08)' },
+      default: { shadowColor: '#173C32', shadowOpacity: 0.08, shadowRadius: 4, elevation: 1 },
+    }),
+  },
   rangeButtonText: { color: '#71877F', fontSize: 12, fontWeight: '800' },
   rangeButtonTextActive: { color: GREEN },
   chart: { marginTop: 6, borderRadius: 16 },

@@ -12,7 +12,7 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import CalendarWeek from '@/components/CalendarWeek';
 import CalorieBar from '@/components/CalorieBar';
 import MacroCircle from '@/components/MacroCircle';
@@ -52,6 +52,8 @@ export default function TodayScreen() {
   const { user } = useAuth();
   const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
   const mutedColor = isDarkMode ? '#A7BBB4' : '#666';
+  const softSurface = isDarkMode ? '#20372F' : '#E4EFEB';
+  const inputSurface = isDarkMode ? '#13251F' : '#F9FCFB';
   const [selectedDate, setSelectedDate] = useState(todayLocal);
   const [meals, setMeals] = useState<DiaryMeal[]>([]);
   const [calories, setCalories] = useState(0);
@@ -67,7 +69,7 @@ export default function TodayScreen() {
   const [showRecipeForm, setShowRecipeForm] = useState(false);
   const [recipeName, setRecipeName] = useState('');
   const [recipeYield, setRecipeYield] = useState('1');
-  const [recipeYieldLabel, setRecipeYieldLabel] = useState('porciones');
+  const [recipeYieldLabel, setRecipeYieldLabel] = useState(() => t('servings').toLowerCase());
   const [savingRecipe, setSavingRecipe] = useState(false);
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
 
@@ -133,7 +135,7 @@ export default function TodayScreen() {
       setModalMeal(null);
       await loadAll(selectedDate);
     } catch {
-      Alert.alert('No pudimos mover la comida', 'Revisá la conexión e intentá otra vez.');
+      Alert.alert(t('move_meal_error'), t('connection_retry'));
     }
   };
 
@@ -144,7 +146,7 @@ export default function TodayScreen() {
       setModalMeal(null);
       await loadAll(selectedDate);
     } catch {
-      Alert.alert('No pudimos eliminar la comida', 'Revisá la conexión e intentá otra vez.');
+      Alert.alert(t('delete_meal_error'), t('connection_retry'));
     }
   };
 
@@ -156,13 +158,13 @@ export default function TodayScreen() {
       setModalMeal({ ...meal, isFavorite: nextFavorite });
       await loadAll(selectedDate);
     } catch {
-      Alert.alert('No pudimos actualizar favoritos', 'Revisá la conexión e intentá otra vez.');
+      Alert.alert(t('favorite_update_error'), t('connection_retry'));
     }
   };
 
   const repeatSelectedMeal = (meal: DiaryMeal) => {
     if (meal.items.length === 0) {
-      return Alert.alert('Esta comida es de una versión anterior', 'No conservó el detalle necesario para repetirla.');
+      return Alert.alert(t('legacy_meal_title'), t('legacy_repeat_body'));
     }
     setEditingMealId(null);
     setRepeatMeal(meal);
@@ -172,7 +174,7 @@ export default function TodayScreen() {
 
   const editSelectedMeal = (meal: DiaryMeal) => {
     if (meal.items.length === 0) {
-      return Alert.alert('Esta comida es de una versión anterior', 'No conservó el detalle necesario para editarla.');
+      return Alert.alert(t('legacy_meal_title'), t('legacy_edit_body'));
     }
     setEditingMealId(meal.id);
     setRepeatMeal(meal);
@@ -183,7 +185,7 @@ export default function TodayScreen() {
   const openRecipeForm = (meal: DiaryMeal) => {
     setRecipeName(meal.name.slice(0, 100));
     setRecipeYield('1');
-    setRecipeYieldLabel('porciones');
+    setRecipeYieldLabel(t('servings').toLowerCase());
     setShowRecipeForm(true);
   };
 
@@ -191,16 +193,16 @@ export default function TodayScreen() {
     if (!user) return;
     const parsedYield = Number(recipeYield.replace(',', '.'));
     if (!recipeName.trim() || !recipeYieldLabel.trim() || !Number.isFinite(parsedYield) || parsedYield <= 0 || parsedYield > 1000) {
-      return Alert.alert('Revisá la receta', 'Ingresá un nombre, un rendimiento válido y una unidad.');
+      return Alert.alert(t('recipe_review_title'), t('recipe_details_invalid'));
     }
     setSavingRecipe(true);
     try {
       await createPersonalRecipeFromMeal(user.id, meal, recipeName.trim(), parsedYield, recipeYieldLabel.trim());
       setRecipes(await listPersonalRecipes(user.id));
       setShowRecipeForm(false);
-      Alert.alert('Receta guardada', 'Ya está disponible desde el botón +.');
+      Alert.alert(t('recipe_saved_title'), t('recipe_saved_body'));
     } catch {
-      Alert.alert('No pudimos guardar la receta', 'Revisá la conexión e intentá otra vez.');
+      Alert.alert(t('save_personal_recipe_error'), t('connection_retry'));
     } finally {
       setSavingRecipe(false);
     }
@@ -221,7 +223,7 @@ export default function TodayScreen() {
             return (
               <View key={m} style={styles.mcol}>
                 <MacroCircle
-                  label={t(m)}
+                  label={t(m === 'fat' ? 'fats' : m)}
                   value={macrosTotal[m]}
                   goal={macrosTarget[m]}
                   color={m === 'protein' ? '#7C5CFC' : m === 'carbs' ? '#FFB020' : '#00C896'}
@@ -251,7 +253,7 @@ export default function TodayScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.mealName, { color: textColor }]}>{meal.name}</Text>
                       <Text style={[styles.mealDetail, { color: mutedColor }]}>
-                        {Math.round(meal.calories)} kcal • {meal.protein.toFixed(1)}g {t('protein')} • {meal.fat.toFixed(1)}g {t('fat')}
+                        {Math.round(meal.calories)} kcal • {meal.protein.toFixed(1)}g {t('protein')} • {meal.fat.toFixed(1)}g {t('fats')}
                       </Text>
                       <Text style={[styles.timestamp, { color: isDarkMode ? '#82968F' : '#999' }]}>
                         {meal.timestamp ? `${t('loggedAt')} ${new Date(meal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
@@ -284,68 +286,68 @@ export default function TodayScreen() {
       <Modal visible={!!modalMeal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           {modalMeal && (
-            <View style={styles.modalBox}>
+            <View style={[styles.modalBox, { backgroundColor: cardColor, borderColor }]}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{modalMeal.name}</Text>
-                  <TouchableOpacity style={styles.favoriteButton} onPress={() => toggleFavorite(modalMeal)}>
+                  <Text style={[styles.modalTitle, { color: textColor }]}>{modalMeal.name}</Text>
+                  <TouchableOpacity style={[styles.favoriteButton, { backgroundColor: softSurface }]} onPress={() => toggleFavorite(modalMeal)}>
                     <Text style={styles.favoriteText}>{modalMeal.isFavorite ? '★' : '☆'}</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.modalTotals}>{Math.round(modalMeal.calories)} kcal · P {modalMeal.protein.toFixed(1)} · C {modalMeal.carbs.toFixed(1)} · G {modalMeal.fat.toFixed(1)}</Text>
+                <Text style={[styles.modalTotals, { color: mutedColor }]}>{Math.round(modalMeal.calories)} kcal · {t('protein').charAt(0)} {modalMeal.protein.toFixed(1)} · {t('carbs').charAt(0)} {modalMeal.carbs.toFixed(1)} · {t('fats').charAt(0)} {modalMeal.fat.toFixed(1)}</Text>
 
-                <Text style={styles.modalSubtitle}>Alimentos</Text>
+                <Text style={[styles.modalSubtitle, { color: textColor }]}>{t('foods')}</Text>
                 {modalMeal.items.length > 0 ? modalMeal.items.map((item) => (
-                  <View key={item.id} style={styles.itemRow}>
+                  <View key={item.id} style={[styles.itemRow, { borderBottomColor: borderColor }]}>
                     <View style={styles.itemCopy}>
-                      <Text style={styles.itemName}>{item.name}</Text>
-                      <Text style={styles.itemAmount}>{item.quantity} {item.unit === 'tbsp' ? 'cda' : item.unit}</Text>
+                      <Text style={[styles.itemName, { color: textColor }]}>{item.name}</Text>
+                      <Text style={[styles.itemAmount, { color: mutedColor }]}>{item.quantity} {item.unit === 'tbsp' ? t('tbsp_short') : item.unit}</Text>
                     </View>
-                    <Text style={styles.itemCalories}>{Math.round(item.calories)} kcal</Text>
+                    <Text style={[styles.itemCalories, { color: textColor }]}>{Math.round(item.calories)} kcal</Text>
                   </View>
-                )) : <Text style={styles.legacyNotice}>Esta comida se guardó antes de incorporar el detalle por alimento.</Text>}
+                )) : <Text style={[styles.legacyNotice, { color: mutedColor, backgroundColor: softSurface }]}>{t('legacy_meal_notice')}</Text>}
 
                 <TouchableOpacity
                   style={[styles.editButton, modalMeal.items.length === 0 && styles.disabledButton]}
                   disabled={modalMeal.items.length === 0}
                   onPress={() => editSelectedMeal(modalMeal)}>
-                  <Text style={styles.editText}>Editar esta comida</Text>
+                  <Text style={styles.editText}>{t('edit_this_meal')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.repeatButton, modalMeal.items.length === 0 && styles.disabledButton]}
                   disabled={modalMeal.items.length === 0}
                   onPress={() => repeatSelectedMeal(modalMeal)}>
-                  <Text style={styles.repeatText}>Repetir y ajustar</Text>
+                  <Text style={styles.repeatText}>{t('repeat_adjust')}</Text>
                 </TouchableOpacity>
 
                 {modalMeal.items.length > 0 && (!showRecipeForm ? (
-                  <TouchableOpacity style={styles.recipeButton} onPress={() => openRecipeForm(modalMeal)}>
-                    <Text style={styles.recipeButtonText}>Guardar como receta personal</Text>
+                  <TouchableOpacity style={[styles.recipeButton, { backgroundColor: softSurface }]} onPress={() => openRecipeForm(modalMeal)}>
+                    <Text style={[styles.recipeButtonText, { color: textColor }]}>{t('save_as_personal_recipe')}</Text>
                   </TouchableOpacity>
                 ) : (
-                  <View style={styles.recipeForm}>
-                    <Text style={styles.modalSubtitle}>Nueva receta</Text>
-                    <Text style={styles.fieldLabel}>Nombre</Text>
-                    <TextInput style={styles.fieldInput} value={recipeName} onChangeText={setRecipeName} maxLength={100} placeholder="Ej. Empanadas caseras" />
-                    <Text style={styles.fieldLabel}>Rendimiento total</Text>
+                  <View style={[styles.recipeForm, { backgroundColor: inputSurface, borderColor }]}>
+                    <Text style={[styles.modalSubtitle, { color: textColor }]}>{t('new_recipe')}</Text>
+                    <Text style={[styles.fieldLabel, { color: mutedColor }]}>{t('name')}</Text>
+                    <TextInput style={[styles.fieldInput, { backgroundColor: cardColor, borderColor, color: textColor }]} value={recipeName} onChangeText={setRecipeName} maxLength={100} placeholder={t('recipe_name_example')} placeholderTextColor={mutedColor} />
+                    <Text style={[styles.fieldLabel, { color: mutedColor }]}>{t('total_yield')}</Text>
                     <View style={styles.recipeYieldRow}>
-                      <TextInput style={[styles.fieldInput, styles.yieldNumber]} value={recipeYield} onChangeText={setRecipeYield} keyboardType="decimal-pad" selectTextOnFocus />
-                      <TextInput style={[styles.fieldInput, styles.yieldLabel]} value={recipeYieldLabel} onChangeText={setRecipeYieldLabel} maxLength={30} placeholder="porciones" />
+                      <TextInput style={[styles.fieldInput, styles.yieldNumber, { backgroundColor: cardColor, borderColor, color: textColor }]} value={recipeYield} onChangeText={setRecipeYield} keyboardType="decimal-pad" selectTextOnFocus />
+                      <TextInput style={[styles.fieldInput, styles.yieldLabel, { backgroundColor: cardColor, borderColor, color: textColor }]} value={recipeYieldLabel} onChangeText={setRecipeYieldLabel} maxLength={30} placeholder={t('servings').toLowerCase()} placeholderTextColor={mutedColor} />
                     </View>
                     <TouchableOpacity style={styles.saveRecipeButton} onPress={() => saveRecipe(modalMeal)} disabled={savingRecipe}>
-                      {savingRecipe ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveRecipeText}>Guardar receta</Text>}
+                      {savingRecipe ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveRecipeText}>{t('save_recipe')}</Text>}
                     </TouchableOpacity>
                   </View>
                 ))}
 
-                <Text style={styles.modalSubtitle}>Cambiar momento</Text>
+                <Text style={[styles.modalSubtitle, { color: textColor }]}>{t('change_meal_time')}</Text>
                 <View style={styles.categoryRow}>
                   {categories.map(cat => (
                     <TouchableOpacity
                       key={cat}
-                      style={[styles.categoryChip, modalMeal.category === cat && styles.categoryChipSelected]}
+                      style={[styles.categoryChip, { backgroundColor: cardColor, borderColor }, modalMeal.category === cat && styles.categoryChipSelected]}
                       onPress={() => updateMealCategory(modalMeal, cat)}>
-                      <Text style={[styles.categoryChipText, modalMeal.category === cat && styles.categoryChipTextSelected]}>{t(cat)}</Text>
+                      <Text style={[styles.categoryChipText, { color: mutedColor }, modalMeal.category === cat && styles.categoryChipTextSelected]}>{t(cat)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -353,7 +355,7 @@ export default function TodayScreen() {
                   <Text style={styles.deleteText}>🗑️ {t('delete')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalClose} onPress={() => setModalMeal(null)}>
-                  <Text>{t('cancel')}</Text>
+                  <Text style={{ color: textColor }}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
   fabText: { color: '#fff', fontSize: 32, lineHeight: 32 },
   image: { width: 60, height: 60, borderRadius: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  modalBox: { backgroundColor: '#F6FAF8', padding: 22, borderRadius: 22, width: '90%', maxWidth: 560, maxHeight: '86%', elevation: 6 },
+  modalBox: { padding: 22, borderRadius: 22, width: '90%', maxWidth: 560, maxHeight: '86%', elevation: 6, borderWidth: 1 },
   modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   modalTitle: { flex: 1, color: '#173C32', fontSize: 20, fontWeight: '900' },
   favoriteButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E4EFEB' },

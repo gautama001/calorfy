@@ -43,7 +43,7 @@ export default function CalendarWeek({ onSelectDate }: Props) {
     const dates = Array.from({ length: 7 }).map((_, i) => {
       const date = startOfWeek.add(i, 'day');
       return {
-        label: date.format('dd')[0].toUpperCase(),
+        label: date.format('ddd').replace('.', '').slice(0, 3).toUpperCase(),
         number: date.format('D'),
         full: date.format('YYYY-MM-DD'),
         isToday: date.isSame(today, 'day')

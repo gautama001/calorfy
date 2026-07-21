@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/HapticTab';
@@ -34,7 +34,14 @@ export default function TabLayout() {
         tabBarInactiveTintColor: isDarkMode ? '#8FA49D' : '#687B75',
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({ ios: { position: 'absolute', borderTopColor: borderColor }, default: { backgroundColor: cardColor, borderTopColor: borderColor } }),
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: {
+          backgroundColor: cardColor,
+          borderTopColor: borderColor,
+          minHeight: 62,
+          paddingTop: 5,
+        },
+        tabBarItemStyle: { minHeight: 50 },
       }}
     >
       <Tabs.Screen
@@ -45,7 +52,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="../upload"
+        name="scan"
         options={{
           title: t('scan'),
           tabBarIcon: ({ color, size }) => <Ionicons name="sync-outline" size={size} color={color}/>

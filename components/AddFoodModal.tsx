@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -43,17 +44,12 @@ type Props = {
   recipes?: PersonalRecipe[];
 };
 
-const categories: Array<{ value: MealCategory; label: string }> = [
-  { value: 'breakfast', label: 'Desayuno' },
-  { value: 'lunch', label: 'Almuerzo' },
-  { value: 'snack', label: 'Merienda' },
-  { value: 'dinner', label: 'Cena' },
-];
+const categories: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
-const units: Array<{ value: PortionUnit; label: string }> = [
-  { value: 'g', label: 'Gramos' },
-  { value: 'ml', label: 'Mililitros' },
-  { value: 'tbsp', label: 'Cucharadas' },
+const units: Array<{ value: PortionUnit; translationKey: 'grams' | 'milliliters' | 'tablespoons' }> = [
+  { value: 'g', translationKey: 'grams' },
+  { value: 'ml', translationKey: 'milliliters' },
+  { value: 'tbsp', translationKey: 'tablespoons' },
 ];
 
 function defaultQuantity(food: FoodSearchResult, unit: PortionUnit) {
@@ -103,6 +99,7 @@ export default function AddFoodModal({
   recipes = [],
 }: Props) {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodSearchResult[]>([]);
@@ -112,7 +109,7 @@ export default function AddFoodModal({
   const [editingRecipe, setEditingRecipe] = useState<PersonalRecipe | null>(null);
   const [recipeEditName, setRecipeEditName] = useState('');
   const [recipeEditYield, setRecipeEditYield] = useState('1');
-  const [recipeEditLabel, setRecipeEditLabel] = useState('porciones');
+  const [recipeEditLabel, setRecipeEditLabel] = useState(() => t('servings').toLowerCase());
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [unit, setUnit] = useState<PortionUnit>('g');
   const [quantity, setQuantity] = useState('100');
@@ -133,7 +130,7 @@ export default function AddFoodModal({
     setEditingRecipe(null);
     setRecipeEditName('');
     setRecipeEditYield('1');
-    setRecipeEditLabel('porciones');
+    setRecipeEditLabel(t('servings').toLowerCase());
     setEditingDraftId(null);
     setQuery('');
     setResults([]);
@@ -166,7 +163,7 @@ export default function AddFoodModal({
           setSearched(true);
         }
       } catch {
-        if (!cancelled) setError('La búsqueda no está disponible en este momento.');
+        if (!cancelled) setError(t('food_search_unavailable'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,7 +173,7 @@ export default function AddFoodModal({
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [query, selectedFood, visible]);
+  }, [query, selectedFood, t, visible]);
 
   const numericQuantity = Math.max(Number(quantity.replace(',', '.')) || 0, 0);
   const currentDraft = selectedFood
@@ -242,17 +239,17 @@ export default function AddFoodModal({
 
   const confirmDeleteRecipe = (recipe: PersonalRecipe) => {
     if (!user) return;
-    Alert.alert('Eliminar receta', `¿Querés eliminar “${recipe.name}”?`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('delete_recipe_title'), t('delete_recipe_body', { name: recipe.name }), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Eliminar',
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deletePersonalRecipe(user.id, recipe.id);
             await onSaved();
           } catch {
-            setError('No pudimos eliminar la receta.');
+            setError(t('delete_recipe_error'));
           }
         },
       },
@@ -263,7 +260,7 @@ export default function AddFoodModal({
     if (!selectedRecipe) return;
     const consumed = Number(recipeQuantity.replace(',', '.'));
     if (!Number.isFinite(consumed) || consumed <= 0 || consumed > selectedRecipe.yieldQuantity) {
-      return setError(`Ingresá una cantidad entre 0,1 y ${selectedRecipe.yieldQuantity}.`);
+      return setError(t('recipe_quantity_range', { max: selectedRecipe.yieldQuantity }));
     }
     const recipeDrafts = personalRecipeToInputs(selectedRecipe, consumed).map((item, index) => ({
       ...item,
@@ -298,7 +295,7 @@ export default function AddFoodModal({
   const stageFood = () => {
     if (!selectedFood || !currentDraft) return;
     if (!Number.isFinite(numericQuantity) || numericQuantity <= 0 || currentDraft.grams > 5000) {
-      return setError('Ingresá una cantidad válida equivalente a un máximo de 5000 gramos.');
+      return setError(t('portion_quantity_invalid'));
     }
 
     const staged = calculateDraft(
@@ -327,8 +324,8 @@ export default function AddFoodModal({
   };
 
   const saveMeal = async () => {
-    if (!user) return setError('Necesitás iniciar sesión para guardar comidas.');
-    if (drafts.length === 0) return setError('Agregá al menos un alimento a la lista preliminar.');
+    if (!user) return setError(t('meal_login_required'));
+    if (drafts.length === 0) return setError(t('preliminary_list_empty'));
 
     setSaving(true);
     setError(null);
@@ -337,7 +334,7 @@ export default function AddFoodModal({
         const parsedYield = Number(recipeEditYield.replace(',', '.'));
         if (!recipeEditName.trim() || !recipeEditLabel.trim() || !Number.isFinite(parsedYield) || parsedYield <= 0 || parsedYield > 1000) {
           setSaving(false);
-          return setError('Ingresá un nombre, rendimiento y unidad válidos para la receta.');
+          return setError(t('recipe_details_invalid'));
         }
         await updatePersonalRecipe(
           user.id,
@@ -357,14 +354,14 @@ export default function AddFoodModal({
       onClose();
       await onSaved();
     } catch {
-      setError(`No pudimos ${editingRecipe ? 'actualizar la receta' : editingMealId ? 'actualizar' : 'guardar la comida'}. Revisá la conexión e intentá otra vez.`);
+      setError(t(editingRecipe ? 'update_recipe_error' : editingMealId ? 'update_meal_error' : 'save_meal_error'));
     } finally {
       setSaving(false);
     }
   };
 
   const quickSteps = unit === 'tbsp' ? [-1, -0.5, 0.5, 1] : [-50, -1, 1, 50];
-  const unitSuffix = unit === 'tbsp' ? 'cda' : unit;
+  const unitSuffix = unit === 'tbsp' ? t('tbsp_short') : unit;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
@@ -374,8 +371,8 @@ export default function AddFoodModal({
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
             <View style={styles.header}>
               <View style={styles.headerCopy}>
-                <Text style={styles.title}>{selectedFood ? 'Definir porción' : editingRecipe ? 'Editar receta' : editingMealId ? 'Editar comida' : 'Armar una comida'}</Text>
-                <Text style={styles.subtitle}>{selectedFood ? 'Ajustá la cantidad antes de sumarla.' : editingRecipe ? 'Actualizá los ingredientes y el rendimiento total.' : editingMealId ? 'Modificá los alimentos y actualizá el registro.' : 'Agregá varios alimentos y guardalos juntos.'}</Text>
+                <Text style={styles.title}>{t(selectedFood ? 'define_portion' : editingRecipe ? 'edit_recipe' : editingMealId ? 'edit_meal' : 'build_meal')}</Text>
+                <Text style={styles.subtitle}>{t(selectedFood ? 'define_portion_hint' : editingRecipe ? 'edit_recipe_hint' : editingMealId ? 'edit_meal_hint' : 'build_meal_hint')}</Text>
               </View>
               <TouchableOpacity style={styles.closeButton} onPress={close}>
                 <Text style={styles.closeText}>×</Text>
@@ -385,20 +382,20 @@ export default function AddFoodModal({
             {selectedFood && currentDraft ? (
               <>
                 <TouchableOpacity onPress={() => { setSelectedFood(null); setEditingDraftId(null); }}>
-                  <Text style={styles.back}>‹ Volver a la comida</Text>
+                  <Text style={styles.back}>‹ {t('back_to_meal')}</Text>
                 </TouchableOpacity>
                 <Text style={styles.foodTitle}>{selectedFood.display_name}</Text>
 
-                <Text style={styles.label}>Unidad</Text>
+                <Text style={styles.label}>{t('unit')}</Text>
                 <View style={styles.selectorRow}>
                   {units.map((item) => (
                     <TouchableOpacity key={item.value} style={[styles.unitButton, unit === item.value && styles.selected]} onPress={() => changeUnit(item.value)}>
-                      <Text style={[styles.selectorText, unit === item.value && styles.selectedText]}>{item.label}</Text>
+                      <Text style={[styles.selectorText, unit === item.value && styles.selectedText]}>{t(item.translationKey)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                <Text style={styles.label}>Cantidad</Text>
+                <Text style={styles.label}>{t('amount')}</Text>
                 <View style={styles.quantityRow}>
                   <TextInput style={styles.quantityInput} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" selectTextOnFocus />
                   <Text style={styles.quantityUnit}>{unitSuffix}</Text>
@@ -410,7 +407,7 @@ export default function AddFoodModal({
                     </TouchableOpacity>
                   ))}
                 </View>
-                {unit !== 'g' && <Text style={styles.equivalence}>Equivalencia utilizada: {currentDraft.grams.toFixed(1)} g</Text>}
+                {unit !== 'g' && <Text style={styles.equivalence}>{t('equivalence_used')}: {currentDraft.grams.toFixed(1)} g</Text>}
 
                 <View style={styles.macroCard}>
                   <Text style={styles.calories}>{Math.round(currentDraft.calories)} kcal</Text>
@@ -418,18 +415,18 @@ export default function AddFoodModal({
                 </View>
                 {error && <Text style={styles.error}>{error}</Text>}
                 <TouchableOpacity style={styles.stageButton} onPress={stageFood}>
-                  <Text style={styles.stageText}>{editingDraftId ? 'Actualizar alimento' : '+ Sumar a la comida'}</Text>
+                  <Text style={styles.stageText}>{editingDraftId ? t('update_food') : `+ ${t('add_to_meal')}`}</Text>
                 </TouchableOpacity>
               </>
             ) : selectedRecipe ? (
               <>
                 <TouchableOpacity onPress={() => setSelectedRecipe(null)}>
-                  <Text style={styles.back}>‹ Volver a la comida</Text>
+                  <Text style={styles.back}>‹ {t('back_to_meal')}</Text>
                 </TouchableOpacity>
                 <Text style={styles.foodTitle}>{selectedRecipe.name}</Text>
-                <Text style={styles.recipeYield}>La receta completa rinde {selectedRecipe.yieldQuantity} {selectedRecipe.yieldLabel}.</Text>
+                <Text style={styles.recipeYield}>{t('recipe_yield_message', { amount: selectedRecipe.yieldQuantity, unit: selectedRecipe.yieldLabel })}</Text>
 
-                <Text style={styles.label}>Cantidad consumida</Text>
+                <Text style={styles.label}>{t('consumed_amount')}</Text>
                 <View style={styles.quantityRow}>
                   <TextInput style={styles.quantityInput} value={recipeQuantity} onChangeText={setRecipeQuantity} keyboardType="decimal-pad" selectTextOnFocus />
                   <Text style={styles.quantityUnit}>{selectedRecipe.yieldLabel}</Text>
@@ -438,7 +435,7 @@ export default function AddFoodModal({
                   <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(Math.max(0.1, (Number(recipeQuantity) || 1) - 1)))}><Text style={styles.stepText}>−1</Text></TouchableOpacity>
                   <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity('1')}><Text style={styles.stepText}>1</Text></TouchableOpacity>
                   <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(Math.min(selectedRecipe.yieldQuantity, (Number(recipeQuantity) || 0) + 1)))}><Text style={styles.stepText}>+1</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(selectedRecipe.yieldQuantity))}><Text style={styles.stepText}>Todo</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.stepButton} onPress={() => setRecipeQuantity(String(selectedRecipe.yieldQuantity))}><Text style={styles.stepText}>{t('all')}</Text></TouchableOpacity>
                 </View>
                 <View style={styles.macroCard}>
                   <Text style={styles.calories}>{Math.round(selectedRecipe.calories * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity))} kcal</Text>
@@ -446,29 +443,29 @@ export default function AddFoodModal({
                 </View>
                 {error && <Text style={styles.error}>{error}</Text>}
                 <TouchableOpacity style={styles.stageButton} onPress={stageRecipe}>
-                  <Text style={styles.stageText}>+ Sumar receta a la comida</Text>
+                  <Text style={styles.stageText}>+ {t('add_recipe_to_meal')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 {editingRecipe && (
                   <View style={styles.recipeEditor}>
-                    <Text style={styles.label}>Datos de la receta</Text>
-                    <TextInput style={styles.recipeInput} value={recipeEditName} onChangeText={setRecipeEditName} maxLength={100} placeholder="Nombre" />
+                    <Text style={styles.label}>{t('recipe_details')}</Text>
+                    <TextInput style={styles.recipeInput} value={recipeEditName} onChangeText={setRecipeEditName} maxLength={100} placeholder={t('name')} />
                     <View style={styles.recipeEditorRow}>
                       <TextInput style={[styles.recipeInput, styles.recipeYieldInput]} value={recipeEditYield} onChangeText={setRecipeEditYield} keyboardType="decimal-pad" selectTextOnFocus />
-                      <TextInput style={[styles.recipeInput, styles.recipeLabelInput]} value={recipeEditLabel} onChangeText={setRecipeEditLabel} maxLength={30} placeholder="porciones" />
+                      <TextInput style={[styles.recipeInput, styles.recipeLabelInput]} value={recipeEditLabel} onChangeText={setRecipeEditLabel} maxLength={30} placeholder={t('servings').toLowerCase()} />
                     </View>
                   </View>
                 )}
                 {drafts.length > 0 && (
                   <View style={styles.draftSection}>
                     <View style={styles.sectionHeader}>
-                      <Text style={styles.sectionTitle}>Lista preliminar</Text>
+                      <Text style={styles.sectionTitle}>{t('preliminary_list')}</Text>
                       <View style={styles.countBadge}><Text style={styles.countText}>{drafts.length}</Text></View>
                     </View>
                     {drafts.map((draft) => {
-                      const suffix = draft.unit === 'tbsp' ? 'cda' : draft.unit;
+                      const suffix = draft.unit === 'tbsp' ? t('tbsp_short') : draft.unit;
                       return (
                         <View key={draft.draftId} style={styles.draftCard}>
                           <TouchableOpacity style={styles.draftInfo} onPress={() => editDraft(draft)}>
@@ -480,26 +477,26 @@ export default function AddFoodModal({
                             <Text style={styles.draftQuantity}>{formattedQuantity(draft.quantity)} {suffix}</Text>
                             <TouchableOpacity style={styles.roundButton} onPress={() => adjustDraft(draft, 1)}><Text style={styles.roundText}>+</Text></TouchableOpacity>
                             <TouchableOpacity onPress={() => setDrafts((current) => current.filter((item) => item.draftId !== draft.draftId))}>
-                              <Text style={styles.removeText}>Quitar</Text>
+                              <Text style={styles.removeText}>{t('remove')}</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
                       );
                     })}
                     <View style={styles.totalCard}>
-                      <View><Text style={styles.totalLabel}>TOTAL PRELIMINAR</Text><Text style={styles.totalCalories}>{Math.round(totals.calories)} kcal</Text></View>
+                      <View><Text style={styles.totalLabel}>{t('preliminary_total').toUpperCase()}</Text><Text style={styles.totalCalories}>{Math.round(totals.calories)} kcal</Text></View>
                       <Text style={styles.totalMacros}>P {totals.protein.toFixed(1)} · C {totals.carbs.toFixed(1)} · G {totals.fat.toFixed(1)}</Text>
                     </View>
                   </View>
                 )}
 
-                <Text style={styles.label}>{drafts.length ? 'Agregar otro alimento' : 'Buscar alimento'}</Text>
+                <Text style={styles.label}>{t(drafts.length ? 'add_another_food' : 'search_food')}</Text>
                 <View style={styles.searchBox}>
                   <TextInput
                     style={styles.searchInput}
                     value={query}
                     onChangeText={(text) => { setQuery(text); setError(null); }}
-                    placeholder="Escribí al menos 3 letras..."
+                    placeholder={t('search_three_letters')}
                     returnKeyType="search"
                     autoFocus={drafts.length === 0 && shortcuts.length === 0 && recipes.length === 0}
                   />
@@ -510,69 +507,75 @@ export default function AddFoodModal({
                   <View style={styles.memorySection}>
                     {recipes.length > 0 && (
                       <>
-                        <Text style={styles.memoryTitle}>Recetas personales</Text>
-                        <Text style={styles.memorySubtitle}>Elegí cuánto consumiste y ajustamos todos los ingredientes.</Text>
+                        <Text style={styles.memoryTitle}>{t('personal_recipes')}</Text>
+                        <Text style={styles.memorySubtitle}>{t('recipe_consumption_hint')}</Text>
                         {recipes.map((recipe) => (
                           <View key={recipe.id} style={styles.memoryCard}>
                             <TouchableOpacity style={styles.memoryCopy} onPress={() => chooseRecipe(recipe)}>
                               <Text style={styles.memoryName} numberOfLines={2}>{recipe.name}</Text>
-                              <Text style={styles.memoryMeta}>Rinde {recipe.yieldQuantity} {recipe.yieldLabel} · {Math.round(recipe.calories / recipe.yieldQuantity)} kcal por unidad</Text>
+                              <Text style={styles.memoryMeta}>{t('yields')} {recipe.yieldQuantity} {recipe.yieldLabel} · {Math.round(recipe.calories / recipe.yieldQuantity)} kcal {t('per_unit')}</Text>
                             </TouchableOpacity>
                             <View style={styles.recipeActions}>
-                              <TouchableOpacity onPress={() => chooseRecipe(recipe)}><Text style={styles.memoryAction}>Usar</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => beginRecipeEdit(recipe)}><Text style={styles.recipeEditAction}>Editar</Text></TouchableOpacity>
+                              <TouchableOpacity onPress={() => chooseRecipe(recipe)}><Text style={styles.memoryAction}>{t('use')}</Text></TouchableOpacity>
+                              <TouchableOpacity onPress={() => beginRecipeEdit(recipe)}><Text style={styles.recipeEditAction}>{t('edit')}</Text></TouchableOpacity>
                               <TouchableOpacity onPress={() => confirmDeleteRecipe(recipe)}><Text style={styles.recipeDeleteAction}>×</Text></TouchableOpacity>
                             </View>
                           </View>
                         ))}
                       </>
                     )}
-                    {shortcuts.length > 0 && <Text style={[styles.memoryTitle, recipes.length > 0 && styles.memoryTitleSpaced]}>Favoritas y recientes</Text>}
-                    {shortcuts.length > 0 && <Text style={styles.memorySubtitle}>Volvé a usar una comida completa.</Text>}
+                    {shortcuts.length > 0 && <Text style={[styles.memoryTitle, recipes.length > 0 && styles.memoryTitleSpaced]}>{t('favorites_recent')}</Text>}
+                    {shortcuts.length > 0 && <Text style={styles.memorySubtitle}>{t('reuse_complete_meal')}</Text>}
                     {shortcuts.map((meal) => (
                       <TouchableOpacity key={meal.id} style={styles.memoryCard} onPress={() => loadSavedMeal(meal)}>
                         <View style={styles.memoryCopy}>
                           <Text style={styles.memoryName} numberOfLines={2}>{meal.isFavorite ? '★ ' : ''}{meal.name}</Text>
-                          <Text style={styles.memoryMeta}>{meal.items.length} {meal.items.length === 1 ? 'alimento' : 'alimentos'} · {Math.round(meal.calories)} kcal</Text>
+                          <Text style={styles.memoryMeta}>{meal.items.length} {t(meal.items.length === 1 ? 'food_item' : 'food_items')} · {Math.round(meal.calories)} kcal</Text>
                         </View>
-                        <Text style={styles.memoryAction}>Usar</Text>
+                        <Text style={styles.memoryAction}>{t('use')}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
-                {!loading && searched && !error && results.length === 0 && <Text style={styles.empty}>No encontramos ese alimento. Probá con otro nombre regional.</Text>}
+                {!loading && searched && !error && results.length === 0 && <Text style={styles.empty}>{t('food_not_found_search')}</Text>}
                 <View style={styles.results}>
                   {results.map((food) => (
                     <TouchableOpacity key={food.id} style={styles.foodCard} onPress={() => chooseFood(food)}>
                       <View style={styles.foodHeader}>
                         <Text style={styles.foodName}>{food.display_name}</Text>
-                        <Text style={styles.addText}>Agregar</Text>
+                        <Text style={styles.addText}>{t('add')}</Text>
                       </View>
-                      <Text style={styles.foodMeta}>{food.default_portion_g ?? 100} g sugeridos</Text>
-                      <Text style={styles.foodMacros}>{Math.round(Number(food.energy_kcal ?? 0))} kcal · P {Number(food.protein_g ?? 0).toFixed(1)} · C {Number(food.carbohydrate_g ?? 0).toFixed(1)} · G {Number(food.fat_g ?? 0).toFixed(1)} cada 100 g</Text>
+                      <Text style={styles.foodMeta}>{food.default_portion_g ?? 100} g {t('suggested').toLowerCase()}</Text>
+                      <Text style={styles.foodMacros}>{Math.round(Number(food.energy_kcal ?? 0))} kcal · P {Number(food.protein_g ?? 0).toFixed(1)} · C {Number(food.carbohydrate_g ?? 0).toFixed(1)} · G {Number(food.fat_g ?? 0).toFixed(1)} {t('per_100g')}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 {drafts.length > 0 && (
                   <>
-                    <Text style={styles.label}>Momento del día</Text>
+                    <Text style={styles.label}>{t('meal_time')}</Text>
                     <View style={styles.selectorRow}>
                       {categories.map((item) => (
-                        <TouchableOpacity key={item.value} style={[styles.categoryButton, category === item.value && styles.selected]} onPress={() => setCategory(item.value)}>
-                          <Text style={[styles.selectorText, category === item.value && styles.selectedText]}>{item.label}</Text>
+                        <TouchableOpacity key={item} style={[styles.categoryButton, category === item && styles.selected]} onPress={() => setCategory(item)}>
+                          <Text style={[styles.selectorText, category === item && styles.selectedText]}>{t(item)}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                     <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={saveMeal} disabled={saving}>
-                      {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{editingRecipe ? 'Actualizar receta' : editingMealId ? 'Actualizar comida' : 'Guardar comida completa'}</Text>}
+                      {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t(editingRecipe ? 'update_recipe' : editingMealId ? 'update_meal' : 'save_complete_meal')}</Text>}
                     </TouchableOpacity>
                   </>
                 )}
 
-                <TouchableOpacity style={styles.scanButton} onPress={() => { close(); router.push('/upload'); }}>
-                  <Text style={styles.scanTitle}>Escanear con AI</Text>
-                  <Text style={styles.scanDescription}>Analizar una foto y continuar desde el resultado</Text>
+                <TouchableOpacity
+                  style={styles.scanButton}
+                  onPress={() => {
+                    close();
+                    router.push({ pathname: '/scan', params: { category } } as never);
+                  }}
+                >
+                  <Text style={styles.scanTitle}>{t('scan_with_ai')}</Text>
+                  <Text style={styles.scanDescription}>{t('scan_continue')}</Text>
                 </TouchableOpacity>
               </>
             )}

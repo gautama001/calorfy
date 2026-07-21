@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { getAuthErrorMessage, getEmailRedirectTo } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 export default function SignupScreen() {
+  const { t } = useTranslation();
+  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
+  const inputStyle = [styles.input, { backgroundColor: cardColor, borderColor, color: textColor }];
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,11 +25,11 @@ export default function SignupScreen() {
   const handleSignup = async () => {
     setError(null);
     setNotice(null);
-    if (!supabase || !isSupabaseConfigured) return setError('Faltan las variables públicas de Supabase.');
-    if (!displayName.trim()) return setError('Ingresá tu nombre.');
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Ingresá un email válido.');
-    if (password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres.');
-    if (password !== passwordConfirmation) return setError('Las contraseñas no coinciden.');
+    if (!supabase || !isSupabaseConfigured) return setError(t('auth_setup_missing'));
+    if (!displayName.trim()) return setError(t('auth_enter_name'));
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError(t('auth_valid_email'));
+    if (password.length < 8) return setError(t('auth_password_min'));
+    if (password !== passwordConfirmation) return setError(t('auth_password_mismatch'));
 
     setSubmitting(true);
     try {
@@ -39,7 +45,7 @@ export default function SignupScreen() {
       if (data.session) return router.replace('/(tabs)');
       setConfirmationSent(true);
     } catch (signupError) {
-      setError(getAuthErrorMessage(signupError));
+      setError(getAuthErrorMessage(signupError, t));
     } finally {
       setSubmitting(false);
     }
@@ -57,9 +63,9 @@ export default function SignupScreen() {
         options: { emailRedirectTo: getEmailRedirectTo() },
       });
       if (resendError) throw resendError;
-      setNotice('Te enviamos un correo nuevo. Revisá también Spam o No deseado.');
+      setNotice(t('confirmation_resent'));
     } catch (resendError) {
-      setError(getAuthErrorMessage(resendError));
+      setError(getAuthErrorMessage(resendError, t));
     } finally {
       setSubmitting(false);
     }
@@ -67,47 +73,47 @@ export default function SignupScreen() {
 
   if (confirmationSent) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.eyebrow}>ÚLTIMO PASO</Text>
-        <Text style={styles.title}>Confirmá tu email</Text>
-        <Text style={styles.description}>Enviamos un enlace a {email.trim().toLowerCase()}. Abrilo desde este iPhone para activar tu cuenta.</Text>
+      <View style={[styles.container, { backgroundColor }]}>
+        <Text style={styles.eyebrow}>{t('last_step').toUpperCase()}</Text>
+        <Text style={[styles.title, { color: textColor }]}>{t('confirm_email')}</Text>
+        <Text style={[styles.description, { color: mutedColor }]}>{t('confirmation_sent_to', { email: email.trim().toLowerCase() })}</Text>
         {notice && <Text style={styles.notice}>{notice}</Text>}
         {error && <Text style={styles.error}>{error}</Text>}
         <TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={resendConfirmation} disabled={submitting}>
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Reenviar correo</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('resend_email')}</Text>}
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.replace('/login')}>
-          <Text style={styles.link}>Ya confirmé: ingresar</Text>
+          <Text style={styles.link}>{t('already_confirmed')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.eyebrow}>TU CUENTA CALORFY</Text>
-      <Text style={styles.title}>Crear cuenta</Text>
-      <TextInput style={styles.input} placeholder="Nombre" value={displayName} onChangeText={setDisplayName} autoCapitalize="words" autoComplete="name" />
-      <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
-      <TextInput style={styles.input} placeholder="Contraseña (mínimo 8 caracteres)" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
-      <TextInput style={styles.input} placeholder="Repetir contraseña" value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry autoComplete="new-password" onSubmitEditing={handleSignup} />
+    <View style={[styles.container, { backgroundColor }]}>
+      <Text style={styles.eyebrow}>{t('your_calorfy_account').toUpperCase()}</Text>
+      <Text style={[styles.title, { color: textColor }]}>{t('create_account')}</Text>
+      <TextInput style={inputStyle} placeholder={t('name')} placeholderTextColor={mutedColor} value={displayName} onChangeText={setDisplayName} autoCapitalize="words" autoComplete="name" />
+      <TextInput style={inputStyle} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
+      <TextInput style={inputStyle} placeholder={t('password_min_placeholder')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
+      <TextInput style={inputStyle} placeholder={t('repeat_password')} placeholderTextColor={mutedColor} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry autoComplete="new-password" onSubmitEditing={handleSignup} />
       {error && <Text style={styles.error}>{error}</Text>}
       <TouchableOpacity style={[styles.button, submitting && styles.disabled]} onPress={handleSignup} disabled={submitting}>
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Crear cuenta</Text>}
+        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('create_account')}</Text>}
       </TouchableOpacity>
       <TouchableOpacity onPress={() => router.replace('/login')}>
-        <Text style={styles.link}>Ya tengo una cuenta</Text>
+        <Text style={styles.link}>{t('already_have_account')}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center', backgroundColor: '#F7FBF9' },
+  container: { flex: 1, padding: 24, justifyContent: 'center' },
   eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
   title: { fontSize: 30, fontWeight: '900', marginTop: 6, marginBottom: 24, textAlign: 'center', color: '#173C32' },
   description: { color: '#557068', fontSize: 16, lineHeight: 23, textAlign: 'center', marginBottom: 18 },
-  input: { borderWidth: 1, borderColor: '#C9DDD6', borderRadius: 16, paddingHorizontal: 16, minHeight: 52, fontSize: 16, marginBottom: 12, backgroundColor: '#fff' },
+  input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 52, fontSize: 16, marginBottom: 12 },
   button: { backgroundColor: '#00A77D', minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   disabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },

@@ -49,7 +49,11 @@ Deno.serve(async (request) => {
     if (!nutrientsResponse.ok) throw new Error(`Nutrients request failed: ${nutrientsResponse.status}`);
     const nutrition = await nutrientsResponse.json();
 
-    return Response.json({ name, nutrients: nutrition.totalNutrients });
+    return Response.json({
+      name,
+      nutrients: nutrition.totalNutrients,
+      totalWeight: Number(nutrition.totalWeight) || null,
+    });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Analysis failed' }, { status: 500 });

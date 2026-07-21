@@ -1,14 +1,15 @@
 import type { EmailOtpType } from '@supabase/supabase-js';
+import type { TFunction } from 'i18next';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
-export function getEmailRedirectTo() {
+export function getEmailRedirectTo(path = '/callback') {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return `${window.location.origin}/callback`;
+    return `${window.location.origin}${path}`;
   }
-  return Linking.createURL('/callback');
+  return Linking.createURL(path);
 }
 
 export async function createSessionFromUrl(url: string) {
@@ -48,15 +49,19 @@ export async function createSessionFromUrl(url: string) {
   throw new Error('El enlace no contiene una sesión válida. Pedí un correo nuevo e intentá otra vez.');
 }
 
-export function getAuthErrorMessage(error: unknown) {
+export function getAuthErrorMessage(error: unknown, t?: TFunction) {
   const message = error instanceof Error ? error.message : String(error);
   const normalized = message.toLowerCase();
 
-  if (normalized.includes('invalid login credentials')) return 'El email o la contraseña no son correctos.';
-  if (normalized.includes('email not confirmed')) return 'Primero confirmá tu email desde el enlace que te enviamos.';
-  if (normalized.includes('user already registered')) return 'Ya existe una cuenta con ese email. Probá iniciar sesión.';
-  if (normalized.includes('rate limit')) return 'Se enviaron demasiados correos. Esperá unos minutos y volvé a intentar.';
-  if (normalized.includes('password')) return 'La contraseña no cumple los requisitos de seguridad.';
-  if (normalized.includes('network') || normalized.includes('fetch')) return 'No pudimos conectar con el servidor. Revisá tu conexión.';
+  if (normalized.includes('invalid login credentials')) return t?.('auth_invalid_credentials') ?? 'El email o la contraseña no son correctos.';
+  if (normalized.includes('email not confirmed')) return t?.('auth_email_not_confirmed') ?? 'Primero confirmá tu email desde el enlace que te enviamos.';
+  if (normalized.includes('user already registered')) return t?.('auth_user_exists') ?? 'Ya existe una cuenta con ese email. Probá iniciar sesión.';
+  if (normalized.includes('rate limit')) return t?.('auth_rate_limit') ?? 'Se enviaron demasiados correos. Esperá unos minutos y volvé a intentar.';
+  if (normalized.includes('password')) return t?.('auth_password_security') ?? 'La contraseña no cumple los requisitos de seguridad.';
+  if (normalized.includes('network') || normalized.includes('fetch')) return t?.('auth_network_error') ?? 'No pudimos conectar con el servidor. Revisá tu conexión.';
+  if (normalized.includes('supabase no est')) return t?.('auth_setup_missing') ?? 'Supabase no está configurado.';
+  if (normalized.includes('no contiene una sesi')) return t?.('auth_invalid_link') ?? 'El enlace no contiene una sesión válida. Pedí un correo nuevo e intentá otra vez.';
+  if (normalized.includes('enlace venci') || normalized.includes('not valid')) return t?.('auth_expired_link') ?? 'El enlace venció o no es válido. Solicitá uno nuevo.';
+  if (normalized.includes('no se pudo iniciar la sesi')) return t?.('auth_session_failed') ?? 'No se pudo iniciar la sesión.';
   return message;
 }
