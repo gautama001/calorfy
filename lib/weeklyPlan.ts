@@ -80,6 +80,10 @@ function cacheKey(userId: string, weekStart: string) {
   return `weekly-plan:v1:${userId}:${weekStart}`;
 }
 
+export async function writeCachedWeeklyPlan(userId: string, plan: WeeklyPlan) {
+  await AsyncStorage.setItem(cacheKey(userId, plan.weekStart), JSON.stringify(plan));
+}
+
 function mapPlan(row: PlanRow): WeeklyPlan {
   return {
     id: row.id,
@@ -101,7 +105,7 @@ export async function syncWeeklyPlan(userId: string, weekStart: string) {
   const { data, error } = await supabase.from('weekly_plans').select('id,week_start,diet_key,calorie_target,weekly_plan_items(id,plan_date,category,recipe_id,servings,status)').eq('user_id', userId).eq('week_start', weekStart).maybeSingle();
   if (error) throw error;
   const plan = data ? mapPlan(data as PlanRow) : null;
-  if (plan) await AsyncStorage.setItem(cacheKey(userId, weekStart), JSON.stringify(plan));
+  if (plan) await writeCachedWeeklyPlan(userId, plan);
   return plan;
 }
 

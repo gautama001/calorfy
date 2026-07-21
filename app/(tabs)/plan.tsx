@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { DIET_GUIDES, getDietGuide, getDietRecipes, type DietKey } from '@/lib/dietCatalog';
 import { localizeDietGuide, localizeDietGuides, localizeDietRecipe } from '@/lib/dietCatalogLocale';
-import { createDiaryMeal } from '@/lib/diary';
+import { createDiaryMeal, diaryTimestampForDate } from '@/lib/diary';
 import { readCachedGoalProfile, syncGoalProfile } from '@/lib/goals';
 import {
   createWeeklyPlan,
@@ -20,6 +20,7 @@ import {
   recipeServingToDiaryInput,
   syncWeeklyPlan,
   updateWeeklyPlanItem,
+  writeCachedWeeklyPlan,
   type WeeklyPlan,
   type WeeklyPlanItem,
 } from '@/lib/weeklyPlan';
@@ -46,6 +47,7 @@ export default function WeeklyPlanScreen() {
   const [generating, setGenerating] = useState(false);
   const [busyItem, setBusyItem] = useState<string | null>(null);
   const [dietPickerOpen, setDietPickerOpen] = useState(false);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const mutedColor = isDarkMode ? '#A7BBB4' : '#637971';
 
   useEffect(() => {
@@ -90,10 +92,20 @@ export default function WeeklyPlanScreen() {
     finally { setGenerating(false); }
   };
 
-  const patchItem = (itemId: string, changes: Partial<WeeklyPlanItem>) => setPlan((current) => current ? { ...current, items: current.items.map((item) => item.id === itemId ? { ...item, ...changes } : item) } : current);
+  const requestRegeneration = () => {
+    if (plan) setConfirmRegenerate(true);
+    else void generate();
+  };
+
+  const patchItem = (itemId: string, changes: Partial<WeeklyPlanItem>) => setPlan((current) => {
+    if (!current) return current;
+    const next = { ...current, items: current.items.map((item) => item.id === itemId ? { ...item, ...changes } : item) };
+    if (user) void writeCachedWeeklyPlan(user.id, next).catch(() => {});
+    return next;
+  });
 
   const changeServings = async (item: WeeklyPlanItem, delta: number) => {
-    if (!user) return;
+    if (!user || item.status === 'added') return;
     const servings = Math.min(3, Math.max(0.5, Math.round((item.servings + delta) * 4) / 4));
     patchItem(item.id, { servings });
     try { await updateWeeklyPlanItem(user.id, item.id, { servings }); }
@@ -101,7 +113,7 @@ export default function WeeklyPlanScreen() {
   };
 
   const swapRecipe = async (item: WeeklyPlanItem) => {
-    if (!user || !plan) return;
+    if (!user || !plan || item.status === 'added') return;
     const pool = getDietRecipes(plan.dietKey).filter((recipe) => recipe.category === item.category);
     const currentIndex = pool.findIndex((recipe) => recipe.id === item.recipeId);
     const replacement = pool[(currentIndex + 1) % pool.length];
@@ -111,13 +123,19 @@ export default function WeeklyPlanScreen() {
     catch { patchItem(item.id, { recipeId: item.recipeId, status: item.status }); Alert.alert(t('weekly_plan_error'), t('connection_retry')); }
   };
 
-  const addItemToToday = async (item: WeeklyPlanItem) => {
-    if (!user) return;
+  const addItemToDiary = async (item: WeeklyPlanItem) => {
+    if (!user || item.status === 'added' || busyItem === item.id) return;
     const recipe = localizeDietRecipe(getPlanItemRecipe(item), i18n.resolvedLanguage);
     if (!recipe) return;
     setBusyItem(item.id);
     try {
-      await createDiaryMeal(user.id, [recipeServingToDiaryInput(recipe, item.servings)], item.category);
+      await createDiaryMeal(
+        user.id,
+        [recipeServingToDiaryInput(recipe, item.servings)],
+        item.category,
+        item.id,
+        diaryTimestampForDate(item.date),
+      );
       await updateWeeklyPlanItem(user.id, item.id, { status: 'added' });
       patchItem(item.id, { status: 'added' });
     } catch { Alert.alert(t('could_not_add_recipe'), t('connection_retry')); }
@@ -137,31 +155,32 @@ export default function WeeklyPlanScreen() {
         <View style={[styles.emptyCard, { backgroundColor: cardColor, borderColor }]}>
           <View style={styles.emptyIcon}><Ionicons name="calendar-outline" size={30} color="#00A77D" /></View>
           <Text style={[styles.emptyTitle, { color: textColor }]}>{t('build_your_week')}</Text>
-          <TouchableOpacity style={[styles.emptyDietSelector, { borderColor }]} onPress={() => setDietPickerOpen(true)}>
+          <TouchableOpacity accessibilityRole="button" style={[styles.emptyDietSelector, { borderColor }]} onPress={() => setDietPickerOpen(true)}>
             <View style={[styles.optionDot, { backgroundColor: selectedGuide?.accent ?? '#00A77D' }]} />
             <View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: textColor }]}>{selectedGuide?.name}</Text><Text style={[styles.emptyText, { color: mutedColor }]}>{calorieTarget} kcal · {t('change_eating_style')}</Text></View>
             <Ionicons name="chevron-down" size={18} color="#00A77D" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton} onPress={generate} disabled={generating}>{generating ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t('generate_weekly_plan')}</Text>}</TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={generate} disabled={generating}>{generating ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t('generate_weekly_plan')}</Text>}</TouchableOpacity>
         </View>
       ) : (
         <>
           <View style={[styles.planHeader, { backgroundColor: cardColor, borderColor }]}>
-            <TouchableOpacity style={styles.dietSelector} onPress={() => setDietPickerOpen(true)} activeOpacity={0.75}>
+            <TouchableOpacity accessibilityRole="button" style={styles.dietSelector} onPress={() => setDietPickerOpen(true)} activeOpacity={0.75}>
               <View style={[styles.dietDot, { backgroundColor: guide?.accent ?? '#00A77D' }]} />
               <View style={{ flex: 1 }}><Text style={[styles.planDiet, { color: textColor }]}>{guide?.name}</Text><Text style={[styles.planMeta, { color: mutedColor }]}>{plan.calorieTarget} kcal · {t('change_eating_style')}</Text></View>
               <Ionicons name="chevron-down" size={18} color="#00A77D" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.regenerateButton} onPress={generate} disabled={generating}><Ionicons name="refresh" size={18} color="#008F6D" /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('regenerate_plan')} style={styles.regenerateButton} onPress={requestRegeneration} disabled={generating}><Ionicons name="refresh" size={18} color="#008F6D" /></TouchableOpacity>
           </View>
-          {dietKey !== plan.dietKey ? <TouchableOpacity style={styles.applyButton} onPress={generate} disabled={generating}>{generating ? <ActivityIndicator color="#FFFFFF" /> : <><Ionicons name="sparkles-outline" size={18} color="#FFFFFF" /><Text style={styles.primaryText}>{t('apply_to_plan')}: {selectedGuide?.shortName}</Text></>}</TouchableOpacity> : null}
+          {dietKey !== plan.dietKey ? <TouchableOpacity accessibilityRole="button" style={styles.applyButton} onPress={requestRegeneration} disabled={generating}>{generating ? <ActivityIndicator color="#FFFFFF" /> : <><Ionicons name="sparkles-outline" size={18} color="#FFFFFF" /><Text style={styles.primaryText}>{t('apply_to_plan')}: {selectedGuide?.shortName}</Text></>}</TouchableOpacity> : null}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
             {Array.from({ length: 7 }).map((_, index) => {
               const date = addDays(weekStart, index);
               const selected = selectedDay === index;
               const label = new Date(`${date}T12:00:00`).toLocaleDateString(i18n.resolvedLanguage, { weekday: 'short' });
-              return <TouchableOpacity key={date} style={[styles.day, { borderColor }, selected && styles.daySelected]} onPress={() => setSelectedDay(index)}><Text style={[styles.dayName, { color: mutedColor }, selected && styles.dayTextSelected]}>{label}</Text><Text style={[styles.dayNumber, { color: textColor }, selected && styles.dayTextSelected]}>{date.slice(-2)}</Text>{date === today ? <View style={[styles.todayDot, selected && { backgroundColor: '#FFFFFF' }]} /> : null}</TouchableOpacity>;
+              const accessibilityLabel = new Date(`${date}T12:00:00`).toLocaleDateString(i18n.resolvedLanguage, { weekday: 'long', day: 'numeric', month: 'long' });
+              return <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected }} key={date} style={[styles.day, { borderColor }, selected && styles.daySelected]} onPress={() => setSelectedDay(index)}><Text style={[styles.dayName, { color: mutedColor }, selected && styles.dayTextSelected]}>{label}</Text><Text style={[styles.dayNumber, { color: textColor }, selected && styles.dayTextSelected]}>{date.slice(-2)}</Text>{date === today ? <View style={[styles.todayDot, selected && { backgroundColor: '#FFFFFF' }]} /> : null}</TouchableOpacity>;
             })}
           </ScrollView>
 
@@ -177,28 +196,40 @@ export default function WeeklyPlanScreen() {
               <View key={item.id} style={[styles.mealCard, { backgroundColor: cardColor, borderColor }]}>
                 <View style={styles.mealTop}><View style={{ flex: 1 }}><Text style={styles.category}>{t(item.category).toUpperCase()}</Text><Text style={[styles.recipeName, { color: textColor }]}>{recipe.name}</Text><Text style={[styles.recipeMacros, { color: mutedColor }]}>{Math.round(recipe.calories * item.servings)} kcal · {t('protein').charAt(0)} {Math.round(recipe.protein * item.servings)} · {t('carbs').charAt(0)} {Math.round(recipe.carbs * item.servings)} · {t('fats').charAt(0)} {Math.round(recipe.fat * item.servings)}</Text></View>{item.status === 'added' ? <View style={styles.addedBadge}><Ionicons name="checkmark" size={14} color="#008F6D" /><Text style={styles.addedText}>{t('added')}</Text></View> : null}</View>
                 <View style={styles.actions}>
-                  <View style={[styles.servingControl, { borderColor }]}><TouchableOpacity style={styles.smallButton} onPress={() => changeServings(item, -0.25)}><Ionicons name="remove" size={17} color="#008F6D" /></TouchableOpacity><Text style={[styles.servingText, { color: textColor }]}>{item.servings}x</Text><TouchableOpacity style={styles.smallButton} onPress={() => changeServings(item, 0.25)}><Ionicons name="add" size={17} color="#008F6D" /></TouchableOpacity></View>
-                  <TouchableOpacity style={[styles.actionButton, { borderColor }]} onPress={() => swapRecipe(item)}><Ionicons name="swap-horizontal" size={18} color="#008F6D" /><Text style={styles.actionText}>{t('swap')}</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.addButton, item.status === 'added' && styles.addButtonDone]} onPress={() => addItemToToday(item)} disabled={busyItem === item.id || item.status === 'added'}>{busyItem === item.id ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name={item.status === 'added' ? 'checkmark' : 'add'} size={19} color="#fff" />}</TouchableOpacity>
+                  <View style={[styles.servingControl, { borderColor }, item.status === 'added' && styles.disabledControl]}><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('decrease_servings')} style={styles.smallButton} onPress={() => changeServings(item, -0.25)} disabled={item.status === 'added'}><Ionicons name="remove" size={17} color="#008F6D" /></TouchableOpacity><Text style={[styles.servingText, { color: textColor }]}>{item.servings}x</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('increase_servings')} style={styles.smallButton} onPress={() => changeServings(item, 0.25)} disabled={item.status === 'added'}><Ionicons name="add" size={17} color="#008F6D" /></TouchableOpacity></View>
+                  <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: item.status === 'added' }} style={[styles.actionButton, { borderColor }, item.status === 'added' && styles.disabledControl]} onPress={() => swapRecipe(item)} disabled={item.status === 'added'}><Ionicons name="swap-horizontal" size={18} color="#008F6D" /><Text style={styles.actionText}>{t('swap')}</Text></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={item.status === 'added' ? t('added') : t('add_to_diary')} accessibilityState={{ disabled: busyItem === item.id || item.status === 'added', busy: busyItem === item.id }} style={[styles.addButton, item.status === 'added' && styles.addButtonDone]} onPress={() => addItemToDiary(item)} disabled={busyItem === item.id || item.status === 'added'}>{busyItem === item.id ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name={item.status === 'added' ? 'checkmark' : 'add'} size={19} color="#fff" />}</TouchableOpacity>
                 </View>
               </View>
             );
           })}
-          <TouchableOpacity style={styles.todayButton} onPress={() => router.replace('/(tabs)' as never)}><Ionicons name="home-outline" size={19} color="#FFFFFF" /><Text style={styles.primaryText}>{t('view_today')}</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.todayButton} onPress={() => router.replace('/(tabs)' as never)}><Ionicons name="home-outline" size={19} color="#FFFFFF" /><Text style={styles.primaryText}>{t('view_today')}</Text></TouchableOpacity>
         </>
       )}
 
-      <Modal visible={dietPickerOpen} transparent animationType="fade" onRequestClose={() => setDietPickerOpen(false)}>
+      <Modal visible={dietPickerOpen} transparent animationType="fade" onRequestClose={() => setDietPickerOpen(false)} accessibilityViewIsModal>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: cardColor, borderColor }]}>
-            <View style={styles.modalHeader}><View><Text style={styles.modalEyebrow}>{t('weekly_plan').toUpperCase()}</Text><Text style={[styles.modalTitle, { color: textColor }]}>{t('choose_plan_style')}</Text></View><TouchableOpacity style={[styles.closeButton, { borderColor }]} onPress={() => setDietPickerOpen(false)}><Ionicons name="close" size={20} color={textColor} /></TouchableOpacity></View>
+            <View style={styles.modalHeader}><View><Text style={styles.modalEyebrow}>{t('weekly_plan').toUpperCase()}</Text><Text style={[styles.modalTitle, { color: textColor }]}>{t('choose_plan_style')}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('cancel')} style={[styles.closeButton, { borderColor }]} onPress={() => setDietPickerOpen(false)}><Ionicons name="close" size={20} color={textColor} /></TouchableOpacity></View>
             <ScrollView style={styles.dietList} showsVerticalScrollIndicator={false}>
               {localizedGuides.map((diet) => {
                 const selected = diet.key === dietKey;
-                return <TouchableOpacity key={diet.key} style={[styles.dietOption, { borderColor }, selected && styles.dietOptionSelected]} onPress={() => { setDietKey(diet.key as DietKey); setDietPickerOpen(false); }}><View style={[styles.optionDot, { backgroundColor: diet.accent }]} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: textColor }]}>{diet.name}</Text><Text style={[styles.optionBody, { color: mutedColor }]} numberOfLines={1}>{diet.description}</Text></View>{selected ? <Ionicons name="checkmark-circle" size={22} color="#00A77D" /> : null}</TouchableOpacity>;
+                return <TouchableOpacity accessibilityRole="radio" accessibilityState={{ selected }} key={diet.key} style={[styles.dietOption, { borderColor }, selected && styles.dietOptionSelected]} onPress={() => { setDietKey(diet.key as DietKey); setDietPickerOpen(false); }}><View style={[styles.optionDot, { backgroundColor: diet.accent }]} /><View style={{ flex: 1 }}><Text style={[styles.optionTitle, { color: textColor }]}>{diet.name}</Text><Text style={[styles.optionBody, { color: mutedColor }]} numberOfLines={1}>{diet.description}</Text></View>{selected ? <Ionicons name="checkmark-circle" size={22} color="#00A77D" /> : null}</TouchableOpacity>;
               })}
             </ScrollView>
-            <TouchableOpacity style={[styles.cancelButton, { borderColor }]} onPress={() => setDietPickerOpen(false)}><Text style={[styles.cancelText, { color: textColor }]}>{t('cancel')}</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={[styles.cancelButton, { borderColor }]} onPress={() => setDietPickerOpen(false)}><Text style={[styles.cancelText, { color: textColor }]}>{t('cancel')}</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={confirmRegenerate} transparent animationType="fade" onRequestClose={() => setConfirmRegenerate(false)} accessibilityViewIsModal>
+        <View style={styles.confirmBackdrop}>
+          <View style={[styles.confirmCard, { backgroundColor: cardColor, borderColor }]}>
+            <View style={[styles.confirmIcon, { backgroundColor: isDarkMode ? '#203C33' : '#E4F7F0' }]}><Ionicons name="refresh" size={26} color="#00A77D" /></View>
+            <Text style={[styles.confirmTitle, { color: textColor }]}>{t('replace_plan_title')}</Text>
+            <Text style={[styles.confirmBody, { color: mutedColor }]}>{t('replace_plan_body')}</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.confirmPrimary} onPress={() => { setConfirmRegenerate(false); void generate(); }}><Text style={styles.primaryText}>{t('replace_plan_confirm')}</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={[styles.confirmCancel, { borderColor }]} onPress={() => setConfirmRegenerate(false)}><Text style={[styles.cancelText, { color: textColor }]}>{t('cancel')}</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -253,6 +284,7 @@ const styles = StyleSheet.create({
   actionText: { color: '#008F6D', fontSize: 11, fontWeight: '900' },
   addButton: { width: 44, height: 40, borderRadius: 12, backgroundColor: '#00A77D', alignItems: 'center', justifyContent: 'center' },
   addButtonDone: { backgroundColor: '#7AA99B' },
+  disabledControl: { opacity: 0.45 },
   todayButton: { minHeight: 54, borderRadius: 17, backgroundColor: '#173C32', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', justifyContent: 'flex-end' },
   modalCard: { maxHeight: '82%', borderWidth: 1, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, paddingBottom: 28 },
@@ -268,4 +300,11 @@ const styles = StyleSheet.create({
   optionBody: { fontSize: 10, marginTop: 3, marginRight: 8 },
   cancelButton: { minHeight: 48, borderWidth: 1, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   cancelText: { fontSize: 13, fontWeight: '900' },
+  confirmBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  confirmCard: { width: '100%', maxWidth: 460, borderWidth: 1, borderRadius: 24, padding: 22, alignItems: 'center' },
+  confirmIcon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  confirmTitle: { fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  confirmBody: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8, marginBottom: 18 },
+  confirmPrimary: { width: '100%', minHeight: 50, borderRadius: 16, backgroundColor: '#00A77D', alignItems: 'center', justifyContent: 'center' },
+  confirmCancel: { width: '100%', minHeight: 48, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 9 },
 });
