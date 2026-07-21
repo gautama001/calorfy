@@ -62,6 +62,7 @@ export default function TodayScreen() {
   const [dailyLimit, setDailyLimit] = useState(2000);
   const [expanded, setExpanded] = useState<MealCategory | null>('lunch');
   const [modalMeal, setModalMeal] = useState<DiaryMeal | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<DiaryMeal | null>(null);
   const [repeatMeal, setRepeatMeal] = useState<DiaryMeal | null>(null);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [shortcuts, setShortcuts] = useState<DiaryMeal[]>([]);
@@ -143,11 +144,21 @@ export default function TodayScreen() {
     if (!user) return;
     try {
       await deleteDiaryMeal(user.id, meal.id);
+      setDeleteCandidate(null);
       setModalMeal(null);
       await loadAll(selectedDate);
     } catch {
       Alert.alert(t('delete_meal_error'), t('connection_retry'));
     }
+  };
+
+  const confirmDeleteMeal = (meal: DiaryMeal) => {
+    setDeleteCandidate(meal);
+  };
+
+  const closeMealModal = () => {
+    if (deleteCandidate) return setDeleteCandidate(null);
+    setModalMeal(null);
   };
 
   const toggleFavorite = async (meal: DiaryMeal) => {
@@ -238,14 +249,18 @@ export default function TodayScreen() {
 
         {categories.map((cat) => (
           <View key={cat}>
-            <TouchableOpacity onPress={() => setExpanded(expanded === cat ? null : cat)}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityState={{ expanded: expanded === cat }}
+              onPress={() => setExpanded(expanded === cat ? null : cat)}
+            >
               <Text style={[styles.sub, { color: textColor }]}>{t(cat)}</Text>
             </TouchableOpacity>
 
             {expanded === cat && meals
               .filter(meal => meal.category === cat)
               .map((meal) => (
-                <TouchableOpacity key={meal.id} onPress={() => { setShowRecipeForm(false); setModalMeal(meal); }}>
+                <TouchableOpacity accessibilityRole="button" key={meal.id} onPress={() => { setShowRecipeForm(false); setDeleteCandidate(null); setModalMeal(meal); }}>
                   <View style={[styles.card, { backgroundColor: cardColor, borderColor, borderWidth: 1 }]}>
                     {meal.image && (
                       <Image source={{ uri: meal.image }} style={styles.image} />
@@ -268,6 +283,8 @@ export default function TodayScreen() {
 
       <TouchableOpacity
         style={styles.fab}
+        accessibilityRole="button"
+        accessibilityLabel={t('add_food')}
         onPress={() => { setRepeatMeal(null); setEditingMealId(null); setShowAddFoodModal(true); }}
       >
         <Text style={styles.fabText}>+</Text>
@@ -281,16 +298,32 @@ export default function TodayScreen() {
         recipes={recipes}
         initialMeal={repeatMeal}
         editingMealId={editingMealId}
+        date={selectedDate}
       />
 
-      <Modal visible={!!modalMeal} transparent animationType="fade">
+      <Modal visible={!!modalMeal} transparent animationType="fade" onRequestClose={closeMealModal} accessibilityViewIsModal>
         <View style={styles.modalOverlay}>
           {modalMeal && (
             <View style={[styles.modalBox, { backgroundColor: cardColor, borderColor }]}>
+              {deleteCandidate?.id === modalMeal.id ? (
+                <View style={styles.confirmDelete} accessibilityLiveRegion="polite">
+                  <View style={[styles.confirmIcon, { backgroundColor: isDarkMode ? '#3A211F' : '#FCEDEA' }]}>
+                    <Text style={styles.confirmIconText}>🗑️</Text>
+                  </View>
+                  <Text style={[styles.confirmTitle, { color: textColor }]}>{t('delete_meal_title')}</Text>
+                  <Text style={[styles.confirmBody, { color: mutedColor }]}>{t('delete_meal_body')}</Text>
+                  <TouchableOpacity accessibilityRole="button" style={styles.confirmDeleteButton} onPress={() => void deleteMeal(modalMeal)}>
+                    <Text style={styles.confirmDeleteText}>{t('delete')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" style={[styles.confirmCancelButton, { borderColor }]} onPress={() => setDeleteCandidate(null)}>
+                    <Text style={[styles.confirmCancelText, { color: textColor }]}>{t('cancel')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: textColor }]}>{modalMeal.name}</Text>
-                  <TouchableOpacity style={[styles.favoriteButton, { backgroundColor: softSurface }]} onPress={() => toggleFavorite(modalMeal)}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('favorite')} style={[styles.favoriteButton, { backgroundColor: softSurface }]} onPress={() => toggleFavorite(modalMeal)}>
                     <Text style={styles.favoriteText}>{modalMeal.isFavorite ? '★' : '☆'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -308,12 +341,14 @@ export default function TodayScreen() {
                 )) : <Text style={[styles.legacyNotice, { color: mutedColor, backgroundColor: softSurface }]}>{t('legacy_meal_notice')}</Text>}
 
                 <TouchableOpacity
+                  accessibilityRole="button"
                   style={[styles.editButton, modalMeal.items.length === 0 && styles.disabledButton]}
                   disabled={modalMeal.items.length === 0}
                   onPress={() => editSelectedMeal(modalMeal)}>
                   <Text style={styles.editText}>{t('edit_this_meal')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  accessibilityRole="button"
                   style={[styles.repeatButton, modalMeal.items.length === 0 && styles.disabledButton]}
                   disabled={modalMeal.items.length === 0}
                   onPress={() => repeatSelectedMeal(modalMeal)}>
@@ -321,7 +356,7 @@ export default function TodayScreen() {
                 </TouchableOpacity>
 
                 {modalMeal.items.length > 0 && (!showRecipeForm ? (
-                  <TouchableOpacity style={[styles.recipeButton, { backgroundColor: softSurface }]} onPress={() => openRecipeForm(modalMeal)}>
+                  <TouchableOpacity accessibilityRole="button" style={[styles.recipeButton, { backgroundColor: softSurface }]} onPress={() => openRecipeForm(modalMeal)}>
                     <Text style={[styles.recipeButtonText, { color: textColor }]}>{t('save_as_personal_recipe')}</Text>
                   </TouchableOpacity>
                 ) : (
@@ -345,19 +380,22 @@ export default function TodayScreen() {
                   {categories.map(cat => (
                     <TouchableOpacity
                       key={cat}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: modalMeal.category === cat }}
                       style={[styles.categoryChip, { backgroundColor: cardColor, borderColor }, modalMeal.category === cat && styles.categoryChipSelected]}
                       onPress={() => updateMealCategory(modalMeal, cat)}>
                       <Text style={[styles.categoryChipText, { color: mutedColor }, modalMeal.category === cat && styles.categoryChipTextSelected]}>{t(cat)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                <TouchableOpacity style={styles.deleteButton} onPress={() => deleteMeal(modalMeal)}>
+                <TouchableOpacity accessibilityRole="button" style={styles.deleteButton} onPress={() => confirmDeleteMeal(modalMeal)}>
                   <Text style={styles.deleteText}>🗑️ {t('delete')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalClose} onPress={() => setModalMeal(null)}>
+                <TouchableOpacity accessibilityRole="button" style={styles.modalClose} onPress={() => setModalMeal(null)}>
                   <Text style={{ color: textColor }}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </ScrollView>
+              )}
             </View>
           )}
         </View>
@@ -416,5 +454,14 @@ const styles = StyleSheet.create({
   categoryChipTextSelected: { color: '#008F6D' },
   deleteButton: { paddingVertical: 13, alignItems: 'center', marginTop: 15 },
   deleteText: { color: '#C23B32', fontWeight: '800' },
-  modalClose: { paddingVertical: 12, alignItems: 'center' }
+  modalClose: { paddingVertical: 12, alignItems: 'center' },
+  confirmDelete: { alignItems: 'center', paddingVertical: 10 },
+  confirmIcon: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  confirmIconText: { fontSize: 27 },
+  confirmTitle: { fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  confirmBody: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 9, marginBottom: 20, maxWidth: 380 },
+  confirmDeleteButton: { width: '100%', minHeight: 50, borderRadius: 25, backgroundColor: '#C23B32', alignItems: 'center', justifyContent: 'center' },
+  confirmDeleteText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  confirmCancelButton: { width: '100%', minHeight: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 9 },
+  confirmCancelText: { fontSize: 15, fontWeight: '800' },
 });

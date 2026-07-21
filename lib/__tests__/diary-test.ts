@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { createDiaryClientEventId, diaryMealToInputs, type DiaryMeal } from '@/lib/diary';
+import { createDiaryClientEventId, diaryMealToInputs, diaryTimestampForDate, type DiaryMeal } from '@/lib/diary';
 
 describe('diary idempotency keys', () => {
   it('creates unique UUIDs accepted by Postgres', () => {
@@ -13,6 +13,24 @@ describe('diary idempotency keys', () => {
     expect(first).toMatch(uuid);
     expect(second).toMatch(uuid);
     expect(second).not.toBe(first);
+  });
+});
+
+describe('diary dates', () => {
+  it('keeps the selected local day and the current local time', () => {
+    const now = new Date(2026, 6, 21, 18, 42, 9, 120);
+    const timestamp = new Date(diaryTimestampForDate('2026-07-18', now));
+
+    expect(timestamp.getFullYear()).toBe(2026);
+    expect(timestamp.getMonth()).toBe(6);
+    expect(timestamp.getDate()).toBe(18);
+    expect(timestamp.getHours()).toBe(18);
+    expect(timestamp.getMinutes()).toBe(42);
+  });
+
+  it('rejects impossible dates instead of silently changing the day', () => {
+    expect(() => diaryTimestampForDate('2026-02-31')).toThrow('Invalid diary date');
+    expect(() => diaryTimestampForDate('21/07/2026')).toThrow('Invalid diary date');
   });
 });
 

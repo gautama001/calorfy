@@ -69,9 +69,15 @@ export default function CalendarWeek({ onSelectDate }: Props) {
 
   const renderItem = ({ item }: { item: WeekDate }) => {
     const isSelected = item.full === selectedDate;
+    const accessibilityLabel = dayjs(`${item.full}T12:00:00`).locale(i18n.language).format('dddd D MMMM');
 
     return (
-      <TouchableOpacity onPress={() => handleSelect(item.full)}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ selected: isSelected }}
+        onPress={() => handleSelect(item.full)}
+      >
         <Animated.View
           style={[
             styles.item,

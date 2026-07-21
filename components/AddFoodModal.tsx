@@ -21,6 +21,7 @@ import { type FoodSearchResult, searchFoods } from '@/lib/catalog';
 import {
   createDiaryClientEventId,
   createDiaryMeal,
+  diaryTimestampForDate,
   diaryMealToInputs,
   type DiaryFoodInput,
   type DiaryMeal,
@@ -45,6 +46,7 @@ type Props = {
   initialMeal?: DiaryMeal | null;
   editingMealId?: string | null;
   recipes?: PersonalRecipe[];
+  date?: string;
 };
 
 const categories: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
@@ -100,9 +102,10 @@ export default function AddFoodModal({
   initialMeal = null,
   editingMealId = null,
   recipes = [],
+  date,
 }: Props) {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isDarkMode, textColor, borderColor } = useAppTheme();
   const sheetColor = isDarkMode ? '#0B1F18' : '#F6FAF8';
   const surfaceColor = isDarkMode ? '#153128' : '#FFFFFF';
@@ -194,6 +197,9 @@ export default function AddFoodModal({
     carbs: sum.carbs + item.carbs,
     fat: sum.fat + item.fat,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [drafts]);
+  const selectedDateLabel = date
+    ? new Date(`${date}T12:00:00`).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })
+    : null;
 
   const reset = () => {
     setQuery('');
@@ -356,7 +362,13 @@ export default function AddFoodModal({
       } else if (editingMealId) {
         await updateDiaryMeal(user.id, editingMealId, drafts, category);
       } else {
-        await createDiaryMeal(user.id, drafts, category, saveEventId);
+        await createDiaryMeal(
+          user.id,
+          drafts,
+          category,
+          saveEventId,
+          date ? diaryTimestampForDate(date) : undefined,
+        );
       }
       reset();
       onClose();
@@ -381,6 +393,9 @@ export default function AddFoodModal({
               <View style={styles.headerCopy}>
                 <Text style={[styles.title, { color: textColor }]}>{t(selectedFood ? 'define_portion' : editingRecipe ? 'edit_recipe' : editingMealId ? 'edit_meal' : 'build_meal')}</Text>
                 <Text style={[styles.subtitle, { color: mutedColor }]}>{t(selectedFood ? 'define_portion_hint' : editingRecipe ? 'edit_recipe_hint' : editingMealId ? 'edit_meal_hint' : 'build_meal_hint')}</Text>
+                {selectedDateLabel && !editingMealId && !editingRecipe && (
+                  <Text style={[styles.dateContext, { color: textColor }]}>{t('saving_for_date', { date: selectedDateLabel })}</Text>
+                )}
               </View>
               <TouchableOpacity style={[styles.closeButton, { backgroundColor: softColor }]} onPress={close} accessibilityRole="button" accessibilityLabel={t('cancel')} hitSlop={8}>
                 <Text style={[styles.closeText, { color: textColor }]}>×</Text>
@@ -605,6 +620,7 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1 },
   title: { color: '#173C32', fontSize: 25, fontWeight: '900' },
   subtitle: { color: '#5B746C', marginTop: 4, lineHeight: 19 },
+  dateContext: { fontSize: 12, fontWeight: '800', marginTop: 7, textTransform: 'capitalize' },
   closeButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#E4EFEB', alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#173C32', fontSize: 25, lineHeight: 27 },
   back: { color: '#008F6D', fontWeight: '800', marginTop: 18 },

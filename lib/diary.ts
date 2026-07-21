@@ -130,6 +130,32 @@ export function createDiaryClientEventId() {
   });
 }
 
+export function diaryTimestampForDate(date: string, now = new Date()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) throw new Error('Invalid diary date');
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const timestamp = new Date(
+    year,
+    month,
+    day,
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds(),
+  );
+  if (
+    timestamp.getFullYear() !== year
+    || timestamp.getMonth() !== month
+    || timestamp.getDate() !== day
+  ) {
+    throw new Error('Invalid diary date');
+  }
+  return timestamp.toISOString();
+}
+
 export function diaryMealToInputs(meal: DiaryMeal): DiaryFoodInput[] {
   return meal.items.map((item) => {
     const perHundred = item.grams > 0 ? 100 / item.grams : 0;
@@ -218,6 +244,7 @@ export async function createDiaryMeal(
   foods: DiaryFoodInput[],
   category: MealCategory,
   clientEventId = createDiaryClientEventId(),
+  eatenAt = new Date().toISOString(),
 ) {
   if (!supabase) throw new Error('Supabase no está configurado');
   if (foods.length === 0) throw new Error('La comida no tiene alimentos');
@@ -241,6 +268,7 @@ export async function createDiaryMeal(
     meal_category: category,
     client_event_id: clientEventId,
     items,
+    meal_eaten_at: eatenAt,
   }).single();
   if (error) throw error;
   const savedMeal = data as { user_id: string };
