@@ -23,7 +23,9 @@ Registrar versión, build, modelo de iPhone, versión de iOS, resultado y eviden
 ## Cámara, fotos y red
 
 - Permiso de cámara aceptado, denegado y revocado desde Ajustes.
-- Permiso de fototeca aceptado, limitado y denegado.
+- Selector de fotos abre sin pedir acceso completo a la fototeca; elegir y cancelar vuelven a una pantalla utilizable.
+- Los diálogos nativos de permiso muestran el motivo correcto en español, inglés y portugués.
+- El binario no declara acceso al micrófono.
 - Imagen grande, formato no esperado y alimento no reconocido muestran error recuperable.
 - Sin red, red lenta y backend 500 no bloquean la navegación ni crean duplicados.
 

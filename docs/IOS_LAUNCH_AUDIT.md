@@ -17,8 +17,9 @@ La base técnica ya es candidata a pruebas de lanzamiento. No debe enviarse aún
 | Backend | Verde | Supabase Auth, Postgres con RLS, migraciones versionadas y funciones servidoras. |
 | Secretos | Verde | Clarifai y Edamam se consumen desde `analyze-meal`; el cliente solo contiene la publishable key de Supabase. |
 | Borrado | Verde | `delete-account` está desplegada. La persona puede iniciar el borrado completo desde Ajustes; las filas usan cascada y los archivos se eliminan antes de borrar Auth. |
-| Privacidad | Amarillo | Política y soporte están dentro de la app y listos para GitHub Pages. La URL pública se activa al fusionar y habilitar Pages. |
-| iOS | Amarillo | Bundle ID, permisos, build number y declaración de cifrado configurados. Falta compilar/firma/TestFlight por no estar activa la membresía de Apple. |
+| Privacidad | Amarillo | Política y soporte están dentro de la app. Las URLs públicas quedan pendientes del dominio oficial de Calorfy. |
+| Privacy Manifest | Amarillo | React Native, Expo FileSystem, Expo Constants y AsyncStorage incluyen manifiestos propios sin tracking. Falta validar el manifiesto agregado dentro del archive firmado. |
+| iOS | Amarillo | Bundle ID, permisos localizados, build number y declaración de cifrado configurados. Falta compilar/firma/TestFlight por no estar activa la membresía de Apple. |
 | QA | Amarillo | Falta matriz manual en iPhone físico, VoiceOver, permisos negados, red lenta/sin red y flujo integral de cuenta. |
 
 ## Datos que deben declararse en App Privacy
@@ -42,12 +43,13 @@ Revisar nuevamente estas respuestas si se agrega analytics, crash reporting, pub
 - Categoría sugerida: Health & Fitness; secundaria Food & Drink.
 - App solo para iPhone en v1 (`supportsTablet: false`).
 - Cifrado: únicamente transporte estándar provisto por el sistema (`ITSAppUsesNonExemptEncryption: false`).
+- Permisos nativos: cámara y selección de fotos explicados en español, inglés y portugués; micrófono bloqueado porque Calorfy no lo utiliza.
 - La descripción y las capturas no deben presentar estimaciones como diagnóstico o tratamiento médico.
 
 ## Trabajo pendiente antes de enviar
 
 1. Activar Apple Developer, registrar el Bundle ID y crear la app en App Store Connect.
-2. Habilitar GitHub Pages con GitHub Actions y comprobar las dos URLs públicas.
+2. Publicar política de privacidad y soporte en el dominio oficial de Calorfy y comprobar ambas URLs sin login.
 3. Crear una cuenta demo estable para App Review y escribir credenciales/notas de revisión.
 4. Generar build EAS `production`, subirlo a TestFlight y probarlo desde instalación limpia.
 5. Ejecutar la matriz manual de `docs/IOS_TEST_MATRIX.md` en el iPhone físico.

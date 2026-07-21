@@ -13,6 +13,7 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true,
         "NSCameraUsageDescription": "Calorfy usa la cámara para analizar las comidas que elijas fotografiar.",
         "NSPhotoLibraryUsageDescription": "Calorfy accede a las fotos que elijas para analizar tus comidas."
       }
@@ -32,6 +33,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Calorfy accede únicamente a la foto que elijas para analizar sus alimentos y estimar su información nutricional.",
+          "cameraPermission": "Calorfy usa la cámara únicamente cuando fotografiás una comida para analizar sus alimentos y estimar su información nutricional.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -45,6 +54,11 @@
         }
       ]
     ],
+    "locales": {
+      "en": "./locales/native-en.json",
+      "es": "./locales/native-es.json",
+      "pt": "./locales/native-pt.json"
+    },
     "experiments": {
       "typedRoutes": true
     },

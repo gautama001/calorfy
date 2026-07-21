@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Calorfy",
+    "NSCameraUsageDescription": "Calorfy usa la cámara únicamente cuando fotografiás una comida para analizar sus alimentos y estimar su información nutricional.",
+    "NSPhotoLibraryUsageDescription": "Calorfy accede únicamente a la foto que elijas para analizar sus alimentos y estimar su información nutricional."
+  },
+  "android": {
+    "app_name": "Calorfy"
+  }
+}
