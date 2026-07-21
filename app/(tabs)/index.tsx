@@ -1,90 +1,209 @@
 // app/(tabs)/index.tsx
 import React, { useCallback, useState } from 'react';
 import {
+  Alert,
+  ActivityIndicator,
   View,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   Text,
   Image,
-  Alert,
-  Modal
+  Modal,
+  TextInput,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import CalendarWeek from '@/components/CalendarWeek';
 import CalorieBar from '@/components/CalorieBar';
 import MacroCircle from '@/components/MacroCircle';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AddFoodModal from '@/components/AddFoodModal';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useAuth } from '@/context/AuthContext';
+import {
+  deleteDiaryMeal,
+  type DiaryMeal,
+  type MealCategory,
+  listDiaryShortcuts,
+  readCachedDiaryDay,
+  syncDiaryDay,
+  updateDiaryMealCategory,
+  updateDiaryMealFavorite,
+} from '@/lib/diary';
+import {
+  createPersonalRecipeFromMeal,
+  listPersonalRecipes,
+  type PersonalRecipe,
+} from '@/lib/recipes';
+import { type GoalProfile, readCachedGoalProfile, syncGoalProfile } from '@/lib/goals';
+
+const categories: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+function todayLocal() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export default function TodayScreen() {
   const { t } = useTranslation();
-  const { backgroundColor, textColor, cardColor, isDarkMode } = useAppTheme();
-  const router = useRouter();
-
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [meals, setMeals] = useState<any[]>([]);
+  const { user } = useAuth();
+  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const mutedColor = isDarkMode ? '#A7BBB4' : '#666';
+  const [selectedDate, setSelectedDate] = useState(todayLocal);
+  const [meals, setMeals] = useState<DiaryMeal[]>([]);
   const [calories, setCalories] = useState(0);
   const [macrosTotal, setMacrosTotal] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [macrosTarget, setMacrosTarget] = useState({ protein: 100, carbs: 100, fat: 100 });
   const [dailyLimit, setDailyLimit] = useState(2000);
-  const [expanded, setExpanded] = useState<string | null>('meals');
-  const [modalMeal, setModalMeal] = useState<any | null>(null);
+  const [expanded, setExpanded] = useState<MealCategory | null>('lunch');
+  const [modalMeal, setModalMeal] = useState<DiaryMeal | null>(null);
+  const [repeatMeal, setRepeatMeal] = useState<DiaryMeal | null>(null);
+  const [editingMealId, setEditingMealId] = useState<string | null>(null);
+  const [shortcuts, setShortcuts] = useState<DiaryMeal[]>([]);
+  const [recipes, setRecipes] = useState<PersonalRecipe[]>([]);
+  const [showRecipeForm, setShowRecipeForm] = useState(false);
+  const [recipeName, setRecipeName] = useState('');
+  const [recipeYield, setRecipeYield] = useState('1');
+  const [recipeYieldLabel, setRecipeYieldLabel] = useState('porciones');
+  const [savingRecipe, setSavingRecipe] = useState(false);
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
 
-  const categories = ['meals', 'breakfast', 'lunch', 'snack', 'dinner'];
+  const applyMeals = (dayMeals: DiaryMeal[]) => {
+    setMeals(dayMeals);
+    const totals = dayMeals.reduce((sum, meal) => ({
+      calories: sum.calories + meal.calories,
+      protein: sum.protein + meal.protein,
+      carbs: sum.carbs + meal.carbs,
+      fat: sum.fat + meal.fat,
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    setCalories(totals.calories);
+    setMacrosTotal({
+      protein: Number(totals.protein.toFixed(1)),
+      carbs: Number(totals.carbs.toFixed(1)),
+      fat: Number(totals.fat.toFixed(1)),
+    });
+  };
+
+  const applyTargets = (profile: GoalProfile | null) => {
+    if (!profile) return;
+    setDailyLimit(profile.calorieGoal ?? 2000);
+    setMacrosTarget({
+      protein: profile.proteinGoalG ?? 100,
+      carbs: profile.carbsGoalG ?? 100,
+      fat: profile.fatGoalG ?? 100,
+    });
+  };
 
   const loadAll = async (date: string) => {
-    const cg = await AsyncStorage.getItem('calorieGoal');
-    const p = await AsyncStorage.getItem('proteinGoal');
-    const c = await AsyncStorage.getItem('carbsGoal');
-    const f = await AsyncStorage.getItem('fatGoal');
-    setDailyLimit(parseFloat(cg || '2000'));
-    setMacrosTarget({
-      protein: parseFloat(p || '100'),
-      carbs: parseFloat(c || '100'),
-      fat: parseFloat(f || '100'),
-    });
+    if (!user) return applyMeals([]);
 
-    const stored = await AsyncStorage.getItem('meals');
-    const all = stored ? JSON.parse(stored) : [];
-    const today = all.filter((m: any) => m.date === date);
-    setMeals(today);
-
-    const totCal = today.reduce((s: any, m: any) => s + (m.calories || m.kcal || 0), 0);
-    const totP = today.reduce((s: any, m: any) => s + (m.protein || 0), 0);
-    const totC = today.reduce((s: any, m: any) => s + (m.carbs || 0), 0);
-    const totF = today.reduce((s: any, m: any) => s + (m.fat || 0), 0);
-    setCalories(totCal);
-    setMacrosTotal({
-      protein: parseFloat(totP.toFixed(1)),
-      carbs: parseFloat(totC.toFixed(1)),
-      fat: parseFloat(totF.toFixed(1)),
-    });
+    const [cachedMeals, cachedGoals] = await Promise.all([
+      readCachedDiaryDay(user.id, date),
+      readCachedGoalProfile(user.id),
+    ]);
+    applyMeals(cachedMeals);
+    applyTargets(cachedGoals);
+    try {
+      const [remoteMeals, remoteShortcuts, remoteRecipes, remoteGoals] = await Promise.all([
+        syncDiaryDay(user.id, date),
+        listDiaryShortcuts(user.id),
+        listPersonalRecipes(user.id),
+        syncGoalProfile(user.id),
+      ]);
+      applyMeals(remoteMeals);
+      setShortcuts(remoteShortcuts);
+      setRecipes(remoteRecipes);
+      applyTargets(remoteGoals);
+    } catch {
+      // Cached data remains usable while the connection is unavailable.
+    }
   };
 
   useFocusEffect(useCallback(() => {
     loadAll(selectedDate);
-  }, [selectedDate]));
+  }, [selectedDate, user?.id]));
 
-  const updateMealCategory = async (meal: any, newCategory: string) => {
-    const stored = await AsyncStorage.getItem('meals');
-    const all = stored ? JSON.parse(stored) : [];
-    const updated = all.map((m: any) => (m.timestamp === meal.timestamp ? { ...m, category: newCategory } : m));
-    await AsyncStorage.setItem('meals', JSON.stringify(updated));
-    setModalMeal(null);
-    loadAll(selectedDate);
+  const updateMealCategory = async (meal: DiaryMeal, newCategory: MealCategory) => {
+    if (!user) return;
+    try {
+      await updateDiaryMealCategory(user.id, meal.id, newCategory);
+      setModalMeal(null);
+      await loadAll(selectedDate);
+    } catch {
+      Alert.alert('No pudimos mover la comida', 'Revisá la conexión e intentá otra vez.');
+    }
   };
 
-  const deleteMeal = async (meal: any) => {
-    const stored = await AsyncStorage.getItem('meals');
-    const all = stored ? JSON.parse(stored) : [];
-    const filtered = all.filter((m: any) => m.timestamp !== meal.timestamp);
-    await AsyncStorage.setItem('meals', JSON.stringify(filtered));
+  const deleteMeal = async (meal: DiaryMeal) => {
+    if (!user) return;
+    try {
+      await deleteDiaryMeal(user.id, meal.id);
+      setModalMeal(null);
+      await loadAll(selectedDate);
+    } catch {
+      Alert.alert('No pudimos eliminar la comida', 'Revisá la conexión e intentá otra vez.');
+    }
+  };
+
+  const toggleFavorite = async (meal: DiaryMeal) => {
+    if (!user) return;
+    const nextFavorite = !meal.isFavorite;
+    try {
+      await updateDiaryMealFavorite(user.id, meal.id, nextFavorite);
+      setModalMeal({ ...meal, isFavorite: nextFavorite });
+      await loadAll(selectedDate);
+    } catch {
+      Alert.alert('No pudimos actualizar favoritos', 'Revisá la conexión e intentá otra vez.');
+    }
+  };
+
+  const repeatSelectedMeal = (meal: DiaryMeal) => {
+    if (meal.items.length === 0) {
+      return Alert.alert('Esta comida es de una versión anterior', 'No conservó el detalle necesario para repetirla.');
+    }
+    setEditingMealId(null);
+    setRepeatMeal(meal);
     setModalMeal(null);
-    loadAll(selectedDate);
+    setShowAddFoodModal(true);
+  };
+
+  const editSelectedMeal = (meal: DiaryMeal) => {
+    if (meal.items.length === 0) {
+      return Alert.alert('Esta comida es de una versión anterior', 'No conservó el detalle necesario para editarla.');
+    }
+    setEditingMealId(meal.id);
+    setRepeatMeal(meal);
+    setModalMeal(null);
+    setShowAddFoodModal(true);
+  };
+
+  const openRecipeForm = (meal: DiaryMeal) => {
+    setRecipeName(meal.name.slice(0, 100));
+    setRecipeYield('1');
+    setRecipeYieldLabel('porciones');
+    setShowRecipeForm(true);
+  };
+
+  const saveRecipe = async (meal: DiaryMeal) => {
+    if (!user) return;
+    const parsedYield = Number(recipeYield.replace(',', '.'));
+    if (!recipeName.trim() || !recipeYieldLabel.trim() || !Number.isFinite(parsedYield) || parsedYield <= 0 || parsedYield > 1000) {
+      return Alert.alert('Revisá la receta', 'Ingresá un nombre, un rendimiento válido y una unidad.');
+    }
+    setSavingRecipe(true);
+    try {
+      await createPersonalRecipeFromMeal(user.id, meal, recipeName.trim(), parsedYield, recipeYieldLabel.trim());
+      setRecipes(await listPersonalRecipes(user.id));
+      setShowRecipeForm(false);
+      Alert.alert('Receta guardada', 'Ya está disponible desde el botón +.');
+    } catch {
+      Alert.alert('No pudimos guardar la receta', 'Revisá la conexión e intentá otra vez.');
+    } finally {
+      setSavingRecipe(false);
+    }
   };
 
   const remStyle = (rem: number) => ({
@@ -122,20 +241,20 @@ export default function TodayScreen() {
             </TouchableOpacity>
 
             {expanded === cat && meals
-              .filter(m => (m.category || 'meals').toLowerCase() === cat)
-              .map((meal, i) => (
-                <TouchableOpacity key={i} onPress={() => setModalMeal(meal)}>
-                  <View style={[styles.card, { backgroundColor: isDarkMode ? '#333' : cardColor }]}>
+              .filter(meal => meal.category === cat)
+              .map((meal) => (
+                <TouchableOpacity key={meal.id} onPress={() => { setShowRecipeForm(false); setModalMeal(meal); }}>
+                  <View style={[styles.card, { backgroundColor: cardColor, borderColor, borderWidth: 1 }]}>
                     {meal.image && (
                       <Image source={{ uri: meal.image }} style={styles.image} />
                     )}
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.mealName, { color: textColor }]}>{meal.name}</Text>
-                      <Text style={styles.mealDetail}>
-                        {(meal.calories || meal.kcal)} kcal • {(meal.protein || 0).toFixed(1)}g {t('protein')} • {(meal.fat || 0).toFixed(1)}g {t('fat')}
+                      <Text style={[styles.mealDetail, { color: mutedColor }]}>
+                        {Math.round(meal.calories)} kcal • {meal.protein.toFixed(1)}g {t('protein')} • {meal.fat.toFixed(1)}g {t('fat')}
                       </Text>
-                      <Text style={styles.timestamp}>
-                        {meal.timestamp ? `Logged at ${new Date(meal.timestamp).toLocaleTimeString()}` : ''}
+                      <Text style={[styles.timestamp, { color: isDarkMode ? '#82968F' : '#999' }]}>
+                        {meal.timestamp ? `${t('loggedAt')} ${new Date(meal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                       </Text>
                     </View>
                   </View>
@@ -147,60 +266,98 @@ export default function TodayScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setShowAddFoodModal(true)}
+        onPress={() => { setRepeatMeal(null); setEditingMealId(null); setShowAddFoodModal(true); }}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      <Modal visible={showAddFoodModal} transparent animationType="fade" onRequestClose={() => setShowAddFoodModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Agregar comida</Text>
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={() => {
-                setShowAddFoodModal(false);
-                router.push('/catalog');
-              }}>
-              <Text style={styles.addOptionTitle}>Buscar en Calorfy</Text>
-              <Text style={styles.addOptionDescription}>Elegir de la base LATAM</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={() => {
-                setShowAddFoodModal(false);
-                router.push('/upload');
-              }}>
-              <Text style={styles.addOptionTitle}>Escanear con AI</Text>
-              <Text style={styles.addOptionDescription}>Analizar una foto</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setShowAddFoodModal(false)}>
-              <Text>{t('cancel')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <AddFoodModal
+        visible={showAddFoodModal}
+        onClose={() => { setShowAddFoodModal(false); setRepeatMeal(null); setEditingMealId(null); }}
+        onSaved={() => loadAll(selectedDate)}
+        shortcuts={shortcuts}
+        recipes={recipes}
+        initialMeal={repeatMeal}
+        editingMealId={editingMealId}
+      />
 
       <Modal visible={!!modalMeal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{modalMeal?.name}</Text>
-            <Text style={styles.modalSubtitle}>📂 {t('change_category')}:</Text>
-            {categories.map(cat => (
-              <TouchableOpacity
-                key={cat}
-                style={styles.modalOption}
-                onPress={() => updateMealCategory(modalMeal, cat)}>
-                <Text>{t(cat)}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.modalOption, { marginTop: 16 }]} onPress={() => deleteMeal(modalMeal)}>
-              <Text style={{ color: '#FF6B6B' }}>🗑️ {t('delete')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setModalMeal(null)}>
-              <Text>❌ {t('cancel')}</Text>
-            </TouchableOpacity>
-          </View>
+          {modalMeal && (
+            <View style={styles.modalBox}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{modalMeal.name}</Text>
+                  <TouchableOpacity style={styles.favoriteButton} onPress={() => toggleFavorite(modalMeal)}>
+                    <Text style={styles.favoriteText}>{modalMeal.isFavorite ? '★' : '☆'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.modalTotals}>{Math.round(modalMeal.calories)} kcal · P {modalMeal.protein.toFixed(1)} · C {modalMeal.carbs.toFixed(1)} · G {modalMeal.fat.toFixed(1)}</Text>
+
+                <Text style={styles.modalSubtitle}>Alimentos</Text>
+                {modalMeal.items.length > 0 ? modalMeal.items.map((item) => (
+                  <View key={item.id} style={styles.itemRow}>
+                    <View style={styles.itemCopy}>
+                      <Text style={styles.itemName}>{item.name}</Text>
+                      <Text style={styles.itemAmount}>{item.quantity} {item.unit === 'tbsp' ? 'cda' : item.unit}</Text>
+                    </View>
+                    <Text style={styles.itemCalories}>{Math.round(item.calories)} kcal</Text>
+                  </View>
+                )) : <Text style={styles.legacyNotice}>Esta comida se guardó antes de incorporar el detalle por alimento.</Text>}
+
+                <TouchableOpacity
+                  style={[styles.editButton, modalMeal.items.length === 0 && styles.disabledButton]}
+                  disabled={modalMeal.items.length === 0}
+                  onPress={() => editSelectedMeal(modalMeal)}>
+                  <Text style={styles.editText}>Editar esta comida</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.repeatButton, modalMeal.items.length === 0 && styles.disabledButton]}
+                  disabled={modalMeal.items.length === 0}
+                  onPress={() => repeatSelectedMeal(modalMeal)}>
+                  <Text style={styles.repeatText}>Repetir y ajustar</Text>
+                </TouchableOpacity>
+
+                {modalMeal.items.length > 0 && (!showRecipeForm ? (
+                  <TouchableOpacity style={styles.recipeButton} onPress={() => openRecipeForm(modalMeal)}>
+                    <Text style={styles.recipeButtonText}>Guardar como receta personal</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.recipeForm}>
+                    <Text style={styles.modalSubtitle}>Nueva receta</Text>
+                    <Text style={styles.fieldLabel}>Nombre</Text>
+                    <TextInput style={styles.fieldInput} value={recipeName} onChangeText={setRecipeName} maxLength={100} placeholder="Ej. Empanadas caseras" />
+                    <Text style={styles.fieldLabel}>Rendimiento total</Text>
+                    <View style={styles.recipeYieldRow}>
+                      <TextInput style={[styles.fieldInput, styles.yieldNumber]} value={recipeYield} onChangeText={setRecipeYield} keyboardType="decimal-pad" selectTextOnFocus />
+                      <TextInput style={[styles.fieldInput, styles.yieldLabel]} value={recipeYieldLabel} onChangeText={setRecipeYieldLabel} maxLength={30} placeholder="porciones" />
+                    </View>
+                    <TouchableOpacity style={styles.saveRecipeButton} onPress={() => saveRecipe(modalMeal)} disabled={savingRecipe}>
+                      {savingRecipe ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveRecipeText}>Guardar receta</Text>}
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                <Text style={styles.modalSubtitle}>Cambiar momento</Text>
+                <View style={styles.categoryRow}>
+                  {categories.map(cat => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryChip, modalMeal.category === cat && styles.categoryChipSelected]}
+                      onPress={() => updateMealCategory(modalMeal, cat)}>
+                      <Text style={[styles.categoryChipText, modalMeal.category === cat && styles.categoryChipTextSelected]}>{t(cat)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity style={styles.deleteButton} onPress={() => deleteMeal(modalMeal)}>
+                  <Text style={styles.deleteText}>🗑️ {t('delete')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalClose} onPress={() => setModalMeal(null)}>
+                  <Text>{t('cancel')}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
         </View>
       </Modal>
     </View>
@@ -222,11 +379,40 @@ const styles = StyleSheet.create({
   fabText: { color: '#fff', fontSize: 32, lineHeight: 32 },
   image: { width: 60, height: 60, borderRadius: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  modalBox: { backgroundColor: 'white', padding: 24, borderRadius: 16, width: '80%', elevation: 6 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
-  modalSubtitle: { fontWeight: '600', marginBottom: 8 },
-  modalOption: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  addOptionTitle: { color: '#173C32', fontSize: 16, fontWeight: '800' },
-  addOptionDescription: { color: '#6A7F78', fontSize: 13, marginTop: 3 },
+  modalBox: { backgroundColor: '#F6FAF8', padding: 22, borderRadius: 22, width: '90%', maxWidth: 560, maxHeight: '86%', elevation: 6 },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  modalTitle: { flex: 1, color: '#173C32', fontSize: 20, fontWeight: '900' },
+  favoriteButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E4EFEB' },
+  favoriteText: { color: '#00A77D', fontSize: 25 },
+  modalTotals: { color: '#557068', marginTop: 8, marginBottom: 18 },
+  modalSubtitle: { color: '#173C32', fontWeight: '900', marginTop: 14, marginBottom: 8 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#DDEAE5' },
+  itemCopy: { flex: 1 },
+  itemName: { color: '#173C32', fontWeight: '700' },
+  itemAmount: { color: '#6A7F78', fontSize: 12, marginTop: 3 },
+  itemCalories: { color: '#35584E', fontWeight: '800' },
+  legacyNotice: { color: '#6A7F78', backgroundColor: '#E8F6F1', borderRadius: 12, padding: 12 },
+  editButton: { height: 48, borderRadius: 24, marginTop: 18, borderWidth: 2, borderColor: '#00A77D', backgroundColor: '#E7F7F2', alignItems: 'center', justifyContent: 'center' },
+  editText: { color: '#008F6D', fontSize: 15, fontWeight: '900' },
+  repeatButton: { height: 50, borderRadius: 25, marginTop: 9, backgroundColor: '#00A77D', alignItems: 'center', justifyContent: 'center' },
+  repeatText: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  recipeButton: { minHeight: 46, borderRadius: 23, marginTop: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E4EFEB' },
+  recipeButtonText: { color: '#245044', fontWeight: '900' },
+  recipeForm: { marginTop: 12, borderRadius: 16, padding: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#DDEAE5' },
+  fieldLabel: { color: '#557068', fontSize: 12, fontWeight: '800', marginBottom: 5, marginTop: 7 },
+  fieldInput: { minHeight: 44, borderWidth: 1, borderColor: '#C9DDD6', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F9FCFB', color: '#173C32' },
+  recipeYieldRow: { flexDirection: 'row', gap: 8 },
+  yieldNumber: { width: 82 },
+  yieldLabel: { flex: 1 },
+  saveRecipeButton: { height: 46, borderRadius: 23, backgroundColor: '#00A77D', alignItems: 'center', justifyContent: 'center', marginTop: 13 },
+  saveRecipeText: { color: '#fff', fontWeight: '900' },
+  disabledButton: { opacity: 0.45 },
+  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  categoryChip: { borderRadius: 18, borderWidth: 1, borderColor: '#C9DDD6', paddingHorizontal: 11, paddingVertical: 8, backgroundColor: '#fff' },
+  categoryChipSelected: { borderColor: '#00A77D', backgroundColor: '#E2F7F0' },
+  categoryChipText: { color: '#557068', fontWeight: '700' },
+  categoryChipTextSelected: { color: '#008F6D' },
+  deleteButton: { paddingVertical: 13, alignItems: 'center', marginTop: 15 },
+  deleteText: { color: '#C23B32', fontWeight: '800' },
   modalClose: { paddingVertical: 12, alignItems: 'center' }
 });

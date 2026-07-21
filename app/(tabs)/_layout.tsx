@@ -6,13 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 export default function TabLayout() {
   const { t } = useTranslation();
-  const theme = useColorScheme();
+  const { cardColor, borderColor, isDarkMode } = useAppTheme();
   const { loading, session } = useAuth();
 
   if (loading) {
@@ -31,10 +30,11 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors[theme ?? 'light'].tint,
+        tabBarActiveTintColor: isDarkMode ? '#3ED5AA' : '#00A77D',
+        tabBarInactiveTintColor: isDarkMode ? '#8FA49D' : '#687B75',
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({ ios:{position:'absolute'}, default:{} }),
+        tabBarStyle: Platform.select({ ios: { position: 'absolute', borderTopColor: borderColor }, default: { backgroundColor: cardColor, borderTopColor: borderColor } }),
       }}
     >
       <Tabs.Screen
@@ -59,6 +59,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{
+          title: t('weekly_plan'),
+          tabBarLabel: t('weekly_plan').split(' ')[0],
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color}/>
+        }}
+      />
+      <Tabs.Screen
         name="goals"
         options={{
           title: t('goals'),
@@ -68,16 +76,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="levels"
         options={{
-          title: t('level'),
-          href: Platform.OS === 'web' ? null : undefined,
-          tabBarIcon: ({ color, size }) => <Ionicons name="trophy-outline" size={size} color={color}/>
-        }}
-      />
-      <Tabs.Screen
-        name="catalog"
-        options={{
-          title: 'LATAM',
-          tabBarIcon: ({ color, size }) => <Ionicons name="search-outline" size={size} color={color}/>
+          href: null,
         }}
       />
       <Tabs.Screen

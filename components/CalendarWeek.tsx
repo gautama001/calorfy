@@ -12,6 +12,7 @@ import 'dayjs/locale/es';
 import 'dayjs/locale/pt';
 import 'dayjs/locale/en';
 import { useTranslation } from 'react-i18next';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 type WeekDate = {
   label: string;
@@ -26,6 +27,7 @@ type Props = {
 
 export default function CalendarWeek({ onSelectDate }: Props) {
   const { t, i18n } = useTranslation();
+  const { textColor, isDarkMode } = useAppTheme();
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [weekDates, setWeekDates] = useState<WeekDate[]>([]);
   const scaleAnim = useState(new Animated.Value(1))[0];
@@ -77,10 +79,10 @@ export default function CalendarWeek({ onSelectDate }: Props) {
             isSelected && { transform: [{ scale: scaleAnim }] }
           ]}
         >
-          <Text style={[styles.day, isSelected && styles.selectedText]}>
+          <Text style={[styles.day, { color: isDarkMode ? '#A7BBB4' : '#666' }, isSelected && styles.selectedText]}>
             {item.isToday && isSelected ? t('today_label') : item.label}
           </Text>
-          <Text style={[styles.date, isSelected && styles.selectedText]}>
+          <Text style={[styles.date, { color: textColor }, isSelected && styles.selectedText]}>
             {item.number}
           </Text>
         </Animated.View>

@@ -67,6 +67,21 @@
   "suggested_calories": "Suggested daily calories",
   "diet": "Diet",
   "level": "Level",
+  "weekly_plan": "Weekly plan",
+  "personalized": "Personalized",
+  "weekly_plan_intro": "A week of meals based on your goals, with adjustable portions and swappable recipes.",
+  "weekly_plan_error": "We couldn't update your plan",
+  "build_your_week": "Build your week",
+  "generate_weekly_plan": "Generate weekly plan",
+  "daily_target": "daily target",
+  "planned_for_day": "planned for the day",
+  "swap": "Swap",
+  "added": "Added",
+  "view_today": "Back to Today",
+  "connection_retry": "Check your connection and try again.",
+  "could_not_add_recipe": "We couldn't add the recipe",
+  "plan_cta_title": "Your weekly plan",
+  "plan_cta_body": "Generate 7 days of meals and adapt portions to your goal.",
 
 
 }

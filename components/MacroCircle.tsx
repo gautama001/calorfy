@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { useAppTheme } from '@/hooks/useAppTheme';
 
 interface Props {
   label: string;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function MacroCircle({ label, value, goal, color }: Props) {
+  const { textColor, isDarkMode } = useAppTheme();
   const size = 100;
   const strokeWidth = 10;
   const center = size / 2;
@@ -22,7 +24,7 @@ export default function MacroCircle({ label, value, goal, color }: Props) {
     <View style={styles.container}>
       <Svg width={size} height={size}>
         <Circle
-          stroke="#e6e6e6"
+          stroke={isDarkMode ? '#294039' : '#e6e6e6'}
           fill="none"
           cx={center}
           cy={center}
@@ -44,8 +46,8 @@ export default function MacroCircle({ label, value, goal, color }: Props) {
         />
       </Svg>
       <View style={styles.centerText}>
-        <Text style={styles.value}>{value}g</Text>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.value, { color: textColor }]}>{value}g</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#A7BBB4' : '#666' }]}>{label}</Text>
       </View>
     </View>
   );

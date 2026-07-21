@@ -1,206 +1,207 @@
-import { View, Text, TextInput, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert, Image } from 'react-native';
-import { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import i18n from '../../i18n';
-import { Colors } from '@/constants/Colors';
+
+import { useAuth } from '@/context/AuthContext';
 import { useThemeContext } from '@/context/ThemeContext';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { calculateMacroRecommendation, readCachedGoalProfile, syncGoalProfile, updateNutritionTargets, type GoalProfile } from '@/lib/goals';
+import i18n from '@/i18n';
+
+type TargetMode = 'auto' | 'manual';
+const modeStorageKey = 'nutritionTargetsMode';
+
+function numberValue(value: string) {
+  return Number(value.replace(',', '.'));
+}
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { theme, setTheme } = useThemeContext();
+  const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
+  const mutedColor = isDarkMode ? '#A7BBB4' : '#61776F';
+  const softColor = isDarkMode ? '#193229' : '#E9F7F2';
+  const inputColor = isDarkMode ? '#1B2C26' : '#F7FAF9';
 
-  const [calories, setCalories] = useState('3000');
-  const [protein, setProtein] = useState('30');
-  const [carbs, setCarbs] = useState('50');
-  const [fats, setFats] = useState('20');
+  const [profile, setProfile] = useState<GoalProfile | null>(null);
+  const [mode, setMode] = useState<TargetMode>('auto');
+  const [calories, setCalories] = useState('2000');
+  const [protein, setProtein] = useState('100');
+  const [carbs, setCarbs] = useState('250');
+  const [fats, setFats] = useState('67');
   const [notificationHour, setNotificationHour] = useState('13:00');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const recommendation = useMemo(() => calculateMacroRecommendation({
+    calories: profile?.calorieGoal ?? (numberValue(calories) || 2000),
+    weightKg: profile?.currentWeightKg ?? null,
+    heightCm: profile?.heightCm ?? null,
+    goal: profile?.goal ?? null,
+    diet: profile?.diet ?? null,
+  }), [calories, profile]);
+
+  const applyTargets = (values: { calories: number; protein: number; carbs: number; fats: number }) => {
+    setCalories(String(values.calories));
+    setProtein(String(values.protein));
+    setCarbs(String(values.carbs));
+    setFats(String(values.fats));
+  };
 
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
-        const savedCalories = await AsyncStorage.getItem('calorieGoal');
-        const savedProtein = await AsyncStorage.getItem('proteinGoal');
-        const savedCarbs = await AsyncStorage.getItem('carbsGoal');
-        const savedFats = await AsyncStorage.getItem('fatGoal');
-        const savedHour = await AsyncStorage.getItem('notificationHour');
-
-        if (savedCalories) setCalories(savedCalories);
-        if (savedProtein) setProtein(savedProtein);
-        if (savedCarbs) setCarbs(savedCarbs);
-        if (savedFats) setFats(savedFats);
-        if (savedHour) setNotificationHour(savedHour);
-      } catch (error) {
-        console.error('Error loading settings:', error);
-        Alert.alert(t('error') || 'Error', t('error_loading_settings') || 'There was a problem loading the settings.');
-      }
+        const [savedHour, savedMode] = await Promise.all([AsyncStorage.getItem('notificationHour'), AsyncStorage.getItem(modeStorageKey)]);
+        const targetMode: TargetMode = savedMode === 'manual' ? 'manual' : 'auto';
+        if (active) {
+          setMode(targetMode);
+          if (savedHour) setNotificationHour(savedHour);
+        }
+        if (!user) return;
+        const cached = await readCachedGoalProfile(user.id);
+        if (active && cached) {
+          setProfile(cached);
+          const suggested = calculateMacroRecommendation({ calories: cached.calorieGoal ?? 2000, weightKg: cached.currentWeightKg, heightCm: cached.heightCm, goal: cached.goal, diet: cached.diet });
+          applyTargets(targetMode === 'auto' ? suggested : { calories: cached.calorieGoal ?? suggested.calories, protein: cached.proteinGoalG ?? suggested.protein, carbs: cached.carbsGoalG ?? suggested.carbs, fats: cached.fatGoalG ?? suggested.fats });
+        }
+        const remote = await syncGoalProfile(user.id);
+        if (active && remote) {
+          setProfile(remote);
+          const suggested = calculateMacroRecommendation({ calories: remote.calorieGoal ?? 2000, weightKg: remote.currentWeightKg, heightCm: remote.heightCm, goal: remote.goal, diet: remote.diet });
+          applyTargets(targetMode === 'auto' ? suggested : { calories: remote.calorieGoal ?? suggested.calories, protein: remote.proteinGoalG ?? suggested.protein, carbs: remote.carbsGoalG ?? suggested.carbs, fats: remote.fatGoalG ?? suggested.fats });
+        }
+      } catch {
+        Alert.alert(t('error'), t('error_loading_settings'));
+      } finally { if (active) setLoading(false); }
     })();
-  }, []);
+    return () => { active = false; };
+  }, [user?.id]);
+
+  const selectAutomatic = () => {
+    setMode('auto');
+    applyTargets(recommendation);
+  };
+
+  const currentTotal = Math.max(1, numberValue(protein) * 4 + numberValue(carbs) * 4 + numberValue(fats) * 9);
+  const macroCards = [
+    { key: 'protein', label: t('protein'), value: protein, setter: setProtein, color: '#25B58B', percent: Math.round(numberValue(protein) * 4 / currentTotal * 100) },
+    { key: 'carbs', label: t('carbs'), value: carbs, setter: setCarbs, color: '#E6A13A', percent: Math.round(numberValue(carbs) * 4 / currentTotal * 100) },
+    { key: 'fats', label: t('fats'), value: fats, setter: setFats, color: '#7D72D8', percent: Math.round(numberValue(fats) * 9 / currentTotal * 100) },
+  ];
+
+  const goalLabel = profile?.goal ? t(profile.goal === 'maintain' ? 'maintain_weight' : profile.goal === 'lose' ? 'lose_weight' : profile.goal === 'gain' ? 'gain_weight' : 'gain_muscle') : null;
+  const dietLabel = profile?.diet ? t(profile.diet === 'raw' ? 'raw_food' : profile.diet) : null;
 
   const handleSave = async () => {
+    const values = [calories, protein, carbs, fats].map(numberValue);
+    if (!user || values.some((value) => !Number.isFinite(value) || value <= 0)) return Alert.alert(t('error'), t('please_enter_valid_numbers'));
+    setSaving(true);
     try {
-      if (isNaN(Number(calories)) || isNaN(Number(protein)) || isNaN(Number(carbs)) || isNaN(Number(fats))) {
-        Alert.alert(t('error') || 'Error', t('please_enter_valid_numbers') || 'Please enter valid numeric values.');
-        return;
-      }
-
-      await AsyncStorage.setItem('calorieGoal', calories);
-      await AsyncStorage.setItem('proteinGoal', protein);
-      await AsyncStorage.setItem('carbsGoal', carbs);
-      await AsyncStorage.setItem('fatGoal', fats);
-      await AsyncStorage.setItem('notificationHour', notificationHour);
-      
-      Alert.alert(t('saved') || 'Saved', t('settings_saved') || 'Settings have been saved successfully.');
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      Alert.alert(t('error') || 'Error', t('error_saving_settings') || 'There was a problem saving the settings.');
-    }
+      await updateNutritionTargets(user.id, { calorieGoal: values[0], proteinGoalG: values[1], carbsGoalG: values[2], fatGoalG: values[3] });
+      await Promise.all([AsyncStorage.setItem('notificationHour', notificationHour), AsyncStorage.setItem(modeStorageKey, mode)]);
+      Alert.alert(t('saved'), t('settings_saved'));
+    } catch { Alert.alert(t('error'), t('error_saving_settings')); }
+    finally { setSaving(false); }
   };
 
-  const changeLanguage = async (lang: string) => {
-    try {
-      await i18n.changeLanguage(lang);
-      Alert.alert(t('language_changed') || 'Language Changed', `${t('language_set_to') || 'Language set to'} ${lang.toUpperCase()}`);
-    } catch (error) {
-      console.error('Error changing language:', error);
-      Alert.alert(t('error') || 'Error', t('error_changing_language') || 'Could not change language.');
-    }
+  const changeLanguage = async (language: 'en' | 'es' | 'pt') => {
+    try { await i18n.changeLanguage(language); }
+    catch { Alert.alert(t('error'), t('error_changing_language')); }
   };
+
+  if (loading) return <View style={[styles.loading, { backgroundColor }]}><ActivityIndicator size="large" color="#00A77D" /></View>;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: Colors[theme].background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: Colors[theme].text }]}>{t('personalize_goals')}</Text>
+    <ScrollView style={{ backgroundColor }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Text style={styles.eyebrow}>{t('settings_eyebrow').toUpperCase()}</Text>
+      <Text style={[styles.title, { color: textColor }]}>{t('settings_title')}</Text>
+      <Text style={[styles.intro, { color: mutedColor }]}>{t('settings_intro')}</Text>
 
-      <Text style={[styles.label, { color: Colors[theme].text }]}>🎯 {t('daily_calorie_goal')}</Text>
-      <TextInput
-        style={[styles.input, { backgroundColor: Colors[theme].card, color: Colors[theme].text, borderColor: Colors[theme].border }]}
-        keyboardType="numeric"
-        value={calories}
-        onChangeText={setCalories}
-        placeholder="e.g. 2500"
-        placeholderTextColor={Colors[theme].icon}
-      />
-
-      <Text style={[styles.label, { color: Colors[theme].text }]}>⚖️ {t('macros')}</Text>
-      <TextInput
-        style={[styles.input, styles.macroInput, { backgroundColor: Colors[theme].card, color: Colors[theme].text, borderColor: Colors[theme].border }]}
-        keyboardType="numeric"
-        value={protein}
-        onChangeText={setProtein}
-        placeholder={t('protein')}
-        placeholderTextColor={Colors[theme].icon}
-      />
-      <TextInput
-        style={[styles.input, styles.macroInput, { backgroundColor: Colors[theme].card, color: Colors[theme].text, borderColor: Colors[theme].border }]}
-        keyboardType="numeric"
-        value={carbs}
-        onChangeText={setCarbs}
-        placeholder={t('carbs')}
-        placeholderTextColor={Colors[theme].icon}
-      />
-      <TextInput
-        style={[styles.input, styles.macroInput, { backgroundColor: Colors[theme].card, color: Colors[theme].text, borderColor: Colors[theme].border }]}
-        keyboardType="numeric"
-        value={fats}
-        onChangeText={setFats}
-        placeholder={t('fats')}
-        placeholderTextColor={Colors[theme].icon}
-      />
-
-      <Text style={[styles.label, { color: Colors[theme].text }]}>🕒 {t('preferred_reminder_hour')}</Text>
-      <TextInput
-        style={[styles.input, { backgroundColor: Colors[theme].card, color: Colors[theme].text, borderColor: Colors[theme].border }]}
-        keyboardType="default"
-        value={notificationHour}
-        onChangeText={setNotificationHour}
-        placeholder="e.g. 13:00"
-        placeholderTextColor={Colors[theme].icon}
-      />
-
-      <View style={styles.switchRow}>
-        <Text style={[styles.label, { color: Colors[theme].text }]}>🌗 {t('dark_mode')}</Text>
-        <Switch
-          value={theme === 'dark'}
-          onValueChange={(value) => setTheme(value ? 'dark' : 'light')}
-          thumbColor={theme === 'dark' ? '#00C896' : '#f4f3f4'}
-          trackColor={{ false: '#767577', true: '#00C896' }}
-        />
+      <View style={[styles.hero, { backgroundColor: isDarkMode ? '#153D32' : '#153F34' }]}>
+        <View style={styles.heroTop}><View style={styles.heroIcon}><Ionicons name="sparkles" size={21} color="#0FC99A" /></View><View style={{ flex: 1 }}><Text style={styles.heroEyebrow}>{t('automatic_recommendation').toUpperCase()}</Text><Text style={styles.heroTitle}>{recommendation.calories} kcal</Text></View><View style={styles.autoBadge}><Text style={styles.autoBadgeText}>{mode === 'auto' ? 'AUTO' : t('manual_targets').toUpperCase()}</Text></View></View>
+        <Text style={styles.heroBody}>{t('based_on_your_profile')}</Text>
+        {goalLabel || dietLabel ? <Text style={styles.heroContext}>{t('configured_for')}: {[goalLabel, dietLabel].filter(Boolean).join(' · ')}</Text> : <Text style={styles.heroContext}>{t('profile_incomplete')}</Text>}
+        <View style={styles.recommendationMacros}><Text style={styles.recommendationMacro}>P {recommendation.protein} g</Text><Text style={styles.recommendationMacro}>C {recommendation.carbs} g</Text><Text style={styles.recommendationMacro}>{t('fats').charAt(0)} {recommendation.fats} g</Text></View>
+        {mode === 'manual' ? <TouchableOpacity style={styles.useRecommendation} onPress={selectAutomatic}><Ionicons name="refresh" size={17} color="#FFFFFF" /><Text style={styles.useRecommendationText}>{t('use_recommendation')}</Text></TouchableOpacity> : null}
       </View>
 
-      <Text style={[styles.label, { color: Colors[theme].text }]}>{t('choose_language')}</Text>
-      <View style={styles.languageButtons}>
-        <TouchableOpacity onPress={() => changeLanguage('en')}>
-          <Image source={require('../../assets/flags/gb.png')} style={styles.flagIcon} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => changeLanguage('es')}>
-          <Image source={require('../../assets/flags/es.png')} style={styles.flagIcon} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => changeLanguage('pt')}>
-          <Image source={require('../../assets/flags/pt.png')} style={styles.flagIcon} />
-        </TouchableOpacity>
+      <View style={[styles.card, { backgroundColor: cardColor, borderColor }]}>
+        <View style={styles.sectionHeading}><View><Text style={[styles.sectionTitle, { color: textColor }]}>{t('nutrition_targets')}</Text><Text style={[styles.sectionSubtitle, { color: mutedColor }]}>{mode === 'auto' ? t('automatic_recommendation') : t('manual_targets')}</Text></View><TouchableOpacity style={[styles.modeButton, { backgroundColor: softColor }]} onPress={() => mode === 'auto' ? setMode('manual') : selectAutomatic()}><Ionicons name={mode === 'auto' ? 'create-outline' : 'sparkles-outline'} size={16} color="#00A77D" /><Text style={styles.modeButtonText}>{mode === 'auto' ? t('edit_manually') : t('use_recommendation')}</Text></TouchableOpacity></View>
+
+        <Text style={[styles.fieldLabel, { color: mutedColor }]}>{t('calorie_target')}</Text>
+        <View style={[styles.calorieInput, { backgroundColor: inputColor, borderColor }]}><Ionicons name="flame-outline" size={21} color="#E58535" /><TextInput editable={mode === 'manual'} style={[styles.calorieText, { color: textColor }]} keyboardType="numeric" value={calories} onChangeText={setCalories} /><Text style={[styles.unit, { color: mutedColor }]}>kcal</Text></View>
+
+        <Text style={[styles.fieldLabel, { color: mutedColor }]}>{t('macro_distribution')}</Text>
+        <View style={styles.macroGrid}>{macroCards.map((macro) => <View key={macro.key} style={[styles.macroCard, { backgroundColor: inputColor, borderColor }]}><View style={[styles.macroDot, { backgroundColor: macro.color }]} /><Text style={[styles.macroLabel, { color: mutedColor }]}>{macro.label}</Text><View style={styles.macroValueRow}><TextInput editable={mode === 'manual'} style={[styles.macroInput, { color: textColor }]} keyboardType="numeric" value={macro.value} onChangeText={macro.setter} /><Text style={[styles.macroUnit, { color: mutedColor }]}>g</Text></View><Text style={[styles.percent, { color: macro.color }]}>{macro.percent}%</Text></View>)}</View>
+        <Text style={[styles.note, { color: mutedColor }]}>{t('recommendation_note')}</Text>
       </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>{t('save')}</Text>
-      </TouchableOpacity>
+      <View style={[styles.card, { backgroundColor: cardColor, borderColor }]}>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>{t('preferences')}</Text>
+        <View style={[styles.preferenceRow, { borderBottomColor: borderColor }]}><View style={[styles.preferenceIcon, { backgroundColor: softColor }]}><Ionicons name={isDarkMode ? 'moon' : 'sunny'} size={19} color="#00A77D" /></View><View style={{ flex: 1 }}><Text style={[styles.preferenceTitle, { color: textColor }]}>{t('appearance')}</Text><Text style={[styles.preferenceBody, { color: mutedColor }]}>{t('dark_mode')}</Text></View><Switch value={theme === 'dark'} onValueChange={(value) => setTheme(value ? 'dark' : 'light')} trackColor={{ false: '#B7C7C1', true: '#00A77D' }} thumbColor="#FFFFFF" /></View>
+        <View style={[styles.preferenceRow, { borderBottomColor: borderColor }]}><View style={[styles.preferenceIcon, { backgroundColor: softColor }]}><Ionicons name="notifications-outline" size={19} color="#00A77D" /></View><View style={{ flex: 1 }}><Text style={[styles.preferenceTitle, { color: textColor }]}>{t('reminders')}</Text><Text style={[styles.preferenceBody, { color: mutedColor }]}>{t('reminder_hint')}</Text></View><TextInput style={[styles.timeInput, { color: textColor, backgroundColor: inputColor, borderColor }]} value={notificationHour} onChangeText={setNotificationHour} maxLength={5} keyboardType="numbers-and-punctuation" /></View>
+        <View style={styles.languageSection}><View style={styles.preferenceTitleRow}><View style={[styles.preferenceIcon, { backgroundColor: softColor }]}><Ionicons name="language-outline" size={19} color="#00A77D" /></View><Text style={[styles.preferenceTitle, { color: textColor }]}>{t('language')}</Text></View><View style={styles.languages}>{([['en', require('../../assets/flags/gb.png'), 'English'], ['es', require('../../assets/flags/es.png'), 'Español'], ['pt', require('../../assets/flags/pt.png'), 'Português']] as const).map(([code, flag, label]) => { const selected = i18n.resolvedLanguage?.startsWith(code); return <TouchableOpacity key={code} style={[styles.languageButton, { borderColor }, selected && styles.languageSelected]} onPress={() => changeLanguage(code)}><Image source={flag} style={styles.flag} /><Text style={[styles.languageLabel, { color: textColor }]}>{label}</Text>{selected ? <Ionicons name="checkmark-circle" size={17} color="#00A77D" /> : null}</TouchableOpacity>; })}</View></View>
+      </View>
+
+      <TouchableOpacity style={[styles.saveButton, saving && { opacity: 0.65 }]} onPress={handleSave} disabled={saving}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <><Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" /><Text style={styles.saveText}>{t('save')}</Text></>}</TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  label: {
-    marginTop: 16,
-    marginBottom: 4,
-    fontSize: 16,
-  },
-  input: {
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  macroInput: {
-    marginTop: 8,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  languageButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 12,
-    marginBottom: 20,
-  },
-  flagIcon: {
-    width: 40,
-    height: 30,
-    marginHorizontal: 10,
-  },
-  saveButton: {
-    marginTop: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: '#00C896',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 16, paddingTop: 24, paddingBottom: 120 },
+  eyebrow: { color: '#00A77D', fontSize: 10, fontWeight: '900', letterSpacing: 1.6 },
+  title: { fontSize: 30, fontWeight: '900', marginTop: 2 },
+  intro: { fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 17 },
+  hero: { borderRadius: 22, padding: 17, marginBottom: 12 },
+  heroTop: { flexDirection: 'row', alignItems: 'center' },
+  heroIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#24584A', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  heroEyebrow: { color: '#8FC8B8', fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  heroTitle: { color: '#FFFFFF', fontSize: 25, fontWeight: '900', marginTop: 1 },
+  autoBadge: { backgroundColor: '#24584A', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5 },
+  autoBadgeText: { color: '#41D6AE', fontSize: 8, fontWeight: '900' },
+  heroBody: { color: '#CEE3DC', fontSize: 12, lineHeight: 17, marginTop: 12 },
+  heroContext: { color: '#8FC8B8', fontSize: 10, marginTop: 4 },
+  recommendationMacros: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2B5C4F' },
+  recommendationMacro: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  useRecommendation: { minHeight: 42, borderRadius: 12, backgroundColor: '#00A77D', flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', marginTop: 13 },
+  useRecommendationText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  card: { borderWidth: 1, borderRadius: 21, padding: 16, marginBottom: 12 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '900' },
+  sectionSubtitle: { fontSize: 10, marginTop: 3 },
+  modeButton: { minHeight: 38, borderRadius: 12, paddingHorizontal: 10, flexDirection: 'row', gap: 5, alignItems: 'center' },
+  modeButtonText: { color: '#008F6D', fontSize: 9, fontWeight: '900' },
+  fieldLabel: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 17, marginBottom: 7 },
+  calorieInput: { height: 52, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 },
+  calorieText: { flex: 1, fontSize: 19, fontWeight: '900', marginLeft: 9 },
+  unit: { fontSize: 11, fontWeight: '800' },
+  macroGrid: { flexDirection: 'row', gap: 7 },
+  macroCard: { flex: 1, minWidth: 0, borderWidth: 1, borderRadius: 15, padding: 10 },
+  macroDot: { width: 22, height: 4, borderRadius: 2, marginBottom: 8 },
+  macroLabel: { fontSize: 9, fontWeight: '800' },
+  macroValueRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 3 },
+  macroInput: { flex: 1, minWidth: 0, fontSize: 18, fontWeight: '900', padding: 0 },
+  macroUnit: { fontSize: 10 },
+  percent: { fontSize: 9, fontWeight: '900', marginTop: 4 },
+  note: { fontSize: 9, lineHeight: 14, marginTop: 12 },
+  preferenceRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  preferenceIcon: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  preferenceTitle: { fontSize: 13, fontWeight: '900' },
+  preferenceBody: { fontSize: 10, marginTop: 3 },
+  timeInput: { width: 70, height: 40, borderWidth: 1, borderRadius: 11, textAlign: 'center', fontSize: 13, fontWeight: '900' },
+  languageSection: { paddingTop: 14 },
+  preferenceTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  languages: { gap: 7, marginTop: 10 },
+  languageButton: { minHeight: 46, borderWidth: 1, borderRadius: 13, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
+  languageSelected: { borderColor: '#00A77D', borderWidth: 2 },
+  flag: { width: 27, height: 19, borderRadius: 3, marginRight: 10 },
+  languageLabel: { flex: 1, fontSize: 12, fontWeight: '800' },
+  saveButton: { minHeight: 56, borderRadius: 17, backgroundColor: '#00A77D', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 3 },
+  saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
 });

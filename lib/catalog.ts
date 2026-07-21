@@ -21,8 +21,6 @@ export type FoodSearchResult = {
   rank: number;
 };
 
-export type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
-
 export async function listCountries() {
   if (!supabase) throw new Error('Supabase no está configurado');
   const { data, error } = await supabase
@@ -33,35 +31,13 @@ export async function listCountries() {
   return data as Country[];
 }
 
-export async function searchFoods(searchTerm: string, marketCode: string | null) {
+export async function searchFoods(searchTerm: string) {
   if (!supabase) throw new Error('Supabase no está configurado');
   const { data, error } = await supabase.rpc('search_foods_with_macros', {
     search_term: searchTerm,
-    market_code: marketCode,
+    market_code: null,
     result_limit: 30,
   });
   if (error) throw error;
   return data as FoodSearchResult[];
-}
-
-export async function addFoodToDiary(
-  userId: string,
-  food: FoodSearchResult,
-  grams: number,
-  category: MealCategory,
-) {
-  if (!supabase) throw new Error('Supabase no está configurado');
-  const factor = grams / 100;
-  const meal = {
-    user_id: userId,
-    name: food.display_name,
-    category,
-    calories: Number(food.energy_kcal ?? 0) * factor,
-    protein_g: Number(food.protein_g ?? 0) * factor,
-    carbs_g: Number(food.carbohydrate_g ?? 0) * factor,
-    fat_g: Number(food.fat_g ?? 0) * factor,
-  };
-  const { data, error } = await supabase.from('meals').insert(meal).select('id,eaten_at').single();
-  if (error) throw error;
-  return { ...meal, ...data, grams };
 }

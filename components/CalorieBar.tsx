@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   current: number;
@@ -6,15 +8,17 @@ type Props = {
 };
 
 export default function CalorieBar({ current, limit }: Props) {
+  const { textColor, isDarkMode } = useAppTheme();
+  const { t } = useTranslation();
   const percentage = Math.min((current / limit) * 100, 100);
 
   return (
     <View style={styles.container}>
       <View style={styles.textContainer}>
-        <Text style={styles.label}>Calories</Text>
-        <Text style={styles.value}>{current} / {limit} kcal</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#A7BBB4' : '#666' }]}>{t('calories')}</Text>
+        <Text style={[styles.value, { color: textColor }]}>{current} / {limit} kcal</Text>
       </View>
-      <View style={styles.barBackground}>
+      <View style={[styles.barBackground, { backgroundColor: isDarkMode ? '#294039' : '#e0e0e0' }]}>
         <View style={[styles.barFill, { width: `${percentage}%` }]} />
       </View>
     </View>
