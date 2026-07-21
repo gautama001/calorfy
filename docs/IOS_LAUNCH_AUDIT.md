@@ -36,8 +36,8 @@ Revisar nuevamente estas respuestas si se agrega analytics, crash reporting, pub
 
 ## Metadatos preparados
 
-- Privacy Policy URL: `https://gautama001.github.io/calorfy/privacy.html`
-- Support URL: `https://gautama001.github.io/calorfy/support.html`
+- Privacy Policy URL: pendiente de publicar en el dominio oficial de Calorfy.
+- Support URL: pendiente de publicar en el dominio oficial de Calorfy.
 - Bundle ID: `com.calorfy.calorfylite`
 - Categoría sugerida: Health & Fitness; secundaria Food & Drink.
 - App solo para iPhone en v1 (`supportsTablet: false`).
