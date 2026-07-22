@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 
 import { clearPasswordRecoveryIntent, getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -43,19 +45,31 @@ export default function LoginScreen() {
 
   return (
     <AuthScreen>
-      <Text style={styles.eyebrow}>CALORFY</Text>
+      <Text style={styles.eyebrow}>{t('auth_member_access')}</Text>
       <Text style={[styles.title, { color: textColor }]}>{t('welcome_back')}</Text>
-      <TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
-      <TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder={t('password')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" onSubmitEditing={handleLogin} />
+      <Text style={[styles.description, { color: mutedColor }]}>{t('auth_login_intro')}</Text>
+      <Text style={[styles.label, { color: textColor }]}>{t('email')}</Text>
+      <View style={[styles.inputShell, { backgroundColor: cardColor, borderColor }]}>
+        <Ionicons name="mail-outline" size={19} color={mutedColor} />
+        <TextInput style={[styles.input, { color: textColor }]} placeholder={t('email_placeholder')} placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
+      </View>
+      <Text style={[styles.label, { color: textColor }]}>{t('password')}</Text>
+      <View style={[styles.inputShell, { backgroundColor: cardColor, borderColor }]}>
+        <Ionicons name="lock-closed-outline" size={19} color={mutedColor} />
+        <TextInput style={[styles.input, { color: textColor }]} placeholder={t('password')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoComplete="current-password" onSubmitEditing={handleLogin} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={showPassword ? t('hide_password') : t('show_password')} hitSlop={8} onPress={() => setShowPassword((value) => !value)}>
+          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={mutedColor} />
+        </TouchableOpacity>
+      </View>
       {deleted === '1' ? <Text style={styles.notice} accessibilityLiveRegion="polite">{t('account_deleted_body')}</Text> : null}
       {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={handleLogin} disabled={submitting}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('sign_in')}</Text>}
       </TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => router.push('/forgot-password' as Href)}>
+      <TouchableOpacity accessibilityRole="button" hitSlop={8} style={styles.forgotButton} onPress={() => router.push('/forgot-password' as Href)}>
         <Text style={styles.forgotLink}>{t('forgot_password')}</Text>
       </TouchableOpacity>
-      <Text style={[styles.text, { color: mutedColor }]}>{t('no_account_yet')}</Text>
+      <View style={styles.dividerRow}><View style={[styles.divider, { backgroundColor: borderColor }]} /><Text style={[styles.dividerText, { color: mutedColor }]}>{t('auth_new_here')}</Text><View style={[styles.divider, { backgroundColor: borderColor }]} /></View>
       <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.secondaryButton, { backgroundColor: cardColor }]} onPress={() => router.push('/signup')}>
         <Text style={[styles.buttonText, styles.secondaryButtonText]}>{t('create_account')}</Text>
       </TouchableOpacity>
@@ -64,15 +78,21 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
-  title: { fontSize: 30, fontWeight: '900', marginTop: 6, marginBottom: 28, textAlign: 'center', color: '#173C32' },
-  input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 52, fontSize: 16, marginBottom: 12 },
-  button: { backgroundColor: '#00A77D', minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  eyebrow: { color: '#009F79', fontWeight: '900', fontSize: 11, letterSpacing: 1.5, textAlign: 'center', textTransform: 'uppercase' },
+  title: { fontSize: 32, fontWeight: '900', marginTop: 7, textAlign: 'center', color: '#173C32', letterSpacing: -1 },
+  description: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 8, marginBottom: 24 },
+  label: { fontWeight: '800', fontSize: 13, marginBottom: 7, marginLeft: 2 },
+  inputShell: { borderWidth: 1, borderRadius: 15, minHeight: 54, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  input: { flex: 1, minHeight: 52, fontSize: 16, paddingVertical: 0 },
+  button: { backgroundColor: '#00A77D', minHeight: 54, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   disabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  text: { textAlign: 'center', marginTop: 22, color: '#557068', fontSize: 15 },
-  forgotLink: { color: '#008F6D', textAlign: 'center', marginTop: 16, fontWeight: '700' },
-  secondaryButton: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#00A77D' },
+  forgotButton: { alignSelf: 'center', marginTop: 14 },
+  forgotLink: { color: '#008F6D', textAlign: 'center', fontWeight: '800', fontSize: 13 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 24, marginBottom: 5 },
+  divider: { flex: 1, height: 1 },
+  dividerText: { fontSize: 12, fontWeight: '600' },
+  secondaryButton: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#00A77D' },
   secondaryButtonText: { color: '#00A77D' },
   error: { color: '#B42318', textAlign: 'center', lineHeight: 20, marginBottom: 4 },
   notice: { color: '#087A5E', backgroundColor: '#E2F4ED', borderRadius: 12, padding: 12, textAlign: 'center', lineHeight: 20, marginBottom: 4 },
