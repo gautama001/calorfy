@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { FoodSearchResult } from '@/lib/catalog';
 import type { DiaryFoodInput, DiaryMeal, DiaryMealItem, MealCategory } from '@/lib/diary';
+import { simplifyFoodName } from '@/lib/foodNames';
 import { supabase } from '@/lib/supabase';
 
 export type PersonalRecipe = {
@@ -49,7 +50,7 @@ const recipeSelect = 'id,name,category,yield_quantity,yield_label,calories,prote
 function mapRecipe(row: RecipeRow): PersonalRecipe {
   return {
     id: row.id,
-    name: row.name,
+    name: simplifyFoodName(row.name),
     category: row.category,
     yieldQuantity: Number(row.yield_quantity),
     yieldLabel: row.yield_label,
@@ -61,7 +62,7 @@ function mapRecipe(row: RecipeRow): PersonalRecipe {
     items: [...(row.meal_template_items ?? [])].sort((a, b) => a.sort_order - b.sort_order).map((item) => ({
       id: item.id,
       foodId: item.food_id,
-      name: item.food_name,
+      name: simplifyFoodName(item.food_name),
       quantity: Number(item.quantity),
       unit: item.unit,
       grams: Number(item.grams),
@@ -81,7 +82,11 @@ export async function readCachedPersonalRecipes(userId: string) {
   const value = await AsyncStorage.getItem(cacheKey(userId));
   if (!value) return [];
   try {
-    return JSON.parse(value) as PersonalRecipe[];
+    return (JSON.parse(value) as PersonalRecipe[]).map((recipe) => ({
+      ...recipe,
+      name: simplifyFoodName(recipe.name),
+      items: recipe.items.map((item) => ({ ...item, name: simplifyFoodName(item.name) })),
+    }));
   } catch {
     await AsyncStorage.removeItem(cacheKey(userId));
     return [];

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { simplifyFoodList } from '@/lib/foodNames';
 
 export type Country = {
   code: string;
@@ -36,8 +37,8 @@ export async function searchFoods(searchTerm: string) {
   const { data, error } = await supabase.rpc('search_foods_with_macros', {
     search_term: searchTerm,
     market_code: null,
-    result_limit: 30,
+    result_limit: 60,
   });
   if (error) throw error;
-  return data as FoodSearchResult[];
+  return simplifyFoodList(data as FoodSearchResult[]);
 }

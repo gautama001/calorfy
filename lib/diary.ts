@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { FoodSearchResult } from '@/lib/catalog';
+import { simplifyFoodName } from '@/lib/foodNames';
 import { supabase } from '@/lib/supabase';
 
 export type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
@@ -90,9 +91,23 @@ function cacheKey(userId: string, date: string) {
 
 function mapMeal(row: MealRow): DiaryMeal {
   const eatenAt = new Date(row.eaten_at);
+  const items = (row.meal_items ?? []).map((item) => ({
+    id: item.id,
+    foodId: item.food_id,
+    name: simplifyFoodName(item.food_name),
+    quantity: Number(item.quantity),
+    unit: item.unit,
+    grams: Number(item.grams),
+    calories: Number(item.calories),
+    protein: Number(item.protein_g),
+    carbs: Number(item.carbs_g),
+    fat: Number(item.fat_g),
+  }));
   return {
     id: row.id,
-    name: row.name,
+    name: items.length > 0
+      ? items.map((item) => `${item.name} (${item.quantity} ${item.unit === 'tbsp' ? 'cda' : item.unit})`).join(', ')
+      : simplifyFoodName(row.name),
     category: row.category,
     calories: Number(row.calories),
     protein: Number(row.protein_g),
@@ -101,18 +116,7 @@ function mapMeal(row: MealRow): DiaryMeal {
     image: row.image_path,
     date: localDateString(eatenAt),
     timestamp: eatenAt.toISOString(),
-    items: (row.meal_items ?? []).map((item) => ({
-      id: item.id,
-      foodId: item.food_id,
-      name: item.food_name,
-      quantity: Number(item.quantity),
-      unit: item.unit,
-      grams: Number(item.grams),
-      calories: Number(item.calories),
-      protein: Number(item.protein_g),
-      carbs: Number(item.carbs_g),
-      fat: Number(item.fat_g),
-    })),
+    items,
     isFavorite: row.is_favorite,
     synced: true,
   };
@@ -189,7 +193,16 @@ export async function readCachedDiaryDay(userId: string, date: string) {
   const cached = await AsyncStorage.getItem(cacheKey(userId, date));
   if (!cached) return [];
   try {
-    return JSON.parse(cached) as DiaryMeal[];
+    return (JSON.parse(cached) as DiaryMeal[]).map((meal) => {
+      const items = meal.items.map((item) => ({ ...item, name: simplifyFoodName(item.name) }));
+      return {
+        ...meal,
+        items,
+        name: items.length > 0
+          ? items.map((item) => `${item.name} (${item.quantity} ${item.unit === 'tbsp' ? 'cda' : item.unit})`).join(', ')
+          : simplifyFoodName(meal.name),
+      };
+    });
   } catch {
     await AsyncStorage.removeItem(cacheKey(userId, date));
     return [];
