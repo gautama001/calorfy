@@ -7,8 +7,11 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#F3F7F5" />
-        <meta name="description" content="Calorfy — nutrición pensada para Latinoamérica." />
+        <meta name="theme-color" content="#062A22" />
+        <meta name="description" content="Calorfy — nutrición real, con contexto latinoamericano." />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <title>Calorfy</title>
         <ScrollViewStyleReset />
         <script dangerouslySetInnerHTML={{ __html: initialThemeScript }} />

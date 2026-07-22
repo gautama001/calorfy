@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 
 import { getAuthErrorMessage, getEmailRedirectTo } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -12,11 +13,11 @@ export default function SignupScreen() {
   const { t } = useTranslation();
   const { textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
   const mutedColor = isDarkMode ? '#A7BBB4' : '#557068';
-  const inputStyle = [styles.input, { backgroundColor: cardColor, borderColor, color: textColor }];
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -92,12 +93,17 @@ export default function SignupScreen() {
 
   return (
     <AuthScreen>
-      <Text style={styles.eyebrow}>{t('your_calorfy_account').toUpperCase()}</Text>
+      <Text style={styles.eyebrow}>{t('your_calorfy_account')}</Text>
       <Text style={[styles.title, { color: textColor }]}>{t('create_account')}</Text>
-      <TextInput style={inputStyle} placeholder={t('name')} placeholderTextColor={mutedColor} value={displayName} onChangeText={setDisplayName} autoCapitalize="words" autoComplete="name" />
-      <TextInput style={inputStyle} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
-      <TextInput style={inputStyle} placeholder={t('password_min_placeholder')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
-      <TextInput style={inputStyle} placeholder={t('repeat_password')} placeholderTextColor={mutedColor} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry autoComplete="new-password" onSubmitEditing={handleSignup} />
+      <Text style={[styles.description, { color: mutedColor }]}>{t('auth_signup_intro')}</Text>
+      <Text style={[styles.label, { color: textColor }]}>{t('name')}</Text>
+      <View style={[styles.inputShell, { backgroundColor: cardColor, borderColor }]}><Ionicons name="person-outline" size={19} color={mutedColor} /><TextInput style={[styles.field, { color: textColor }]} placeholder={t('name_placeholder')} placeholderTextColor={mutedColor} value={displayName} onChangeText={setDisplayName} autoCapitalize="words" autoComplete="name" /></View>
+      <Text style={[styles.label, { color: textColor }]}>{t('email')}</Text>
+      <View style={[styles.inputShell, { backgroundColor: cardColor, borderColor }]}><Ionicons name="mail-outline" size={19} color={mutedColor} /><TextInput style={[styles.field, { color: textColor }]} placeholder={t('email_placeholder')} placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" /></View>
+      <Text style={[styles.label, { color: textColor }]}>{t('password')}</Text>
+      <View style={[styles.inputShell, { backgroundColor: cardColor, borderColor }]}><Ionicons name="lock-closed-outline" size={19} color={mutedColor} /><TextInput style={[styles.field, { color: textColor }]} placeholder={t('password_min_placeholder')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoComplete="new-password" /><TouchableOpacity accessibilityRole="button" accessibilityLabel={showPassword ? t('hide_password') : t('show_password')} hitSlop={8} onPress={() => setShowPassword((value) => !value)}><Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={mutedColor} /></TouchableOpacity></View>
+      <Text style={[styles.label, { color: textColor }]}>{t('repeat_password')}</Text>
+      <View style={[styles.inputShell, { backgroundColor: cardColor, borderColor }]}><Ionicons name="shield-checkmark-outline" size={19} color={mutedColor} /><TextInput style={[styles.field, { color: textColor }]} placeholder={t('repeat_password')} placeholderTextColor={mutedColor} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry={!showPassword} autoComplete="new-password" onSubmitEditing={handleSignup} /></View>
       {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={handleSignup} disabled={submitting}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('create_account')}</Text>}
@@ -110,11 +116,14 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { color: '#008F6D', fontWeight: '800', fontSize: 12, letterSpacing: 1.3, textAlign: 'center' },
-  title: { fontSize: 30, fontWeight: '900', marginTop: 6, marginBottom: 24, textAlign: 'center', color: '#173C32' },
-  description: { color: '#557068', fontSize: 16, lineHeight: 23, textAlign: 'center', marginBottom: 18 },
+  eyebrow: { color: '#009F79', fontWeight: '900', fontSize: 11, letterSpacing: 1.5, textAlign: 'center', textTransform: 'uppercase' },
+  title: { fontSize: 32, fontWeight: '900', marginTop: 7, textAlign: 'center', color: '#173C32', letterSpacing: -1 },
+  description: { color: '#557068', fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 8, marginBottom: 22 },
+  label: { fontWeight: '800', fontSize: 13, marginBottom: 7, marginLeft: 2 },
   input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, minHeight: 52, fontSize: 16, marginBottom: 12 },
-  button: { backgroundColor: '#00A77D', minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  inputShell: { borderWidth: 1, borderRadius: 15, minHeight: 54, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  field: { flex: 1, minHeight: 52, fontSize: 16, paddingVertical: 0 },
+  button: { backgroundColor: '#00A77D', minHeight: 54, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   disabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   link: { color: '#008F6D', textAlign: 'center', marginTop: 24, fontWeight: '700' },
