@@ -10,9 +10,9 @@ import { useThemeContext } from '@/context/ThemeContext';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { calculateMacroRecommendation, readCachedGoalProfile, syncGoalProfile, updateNutritionTargets, type GoalProfile } from '@/lib/goals';
 import i18n from '@/i18n';
+import { readCachedUserPreferences, saveUserPreferences, syncUserPreferences, type NutritionTargetsMode, type UserPreferences } from '@/lib/preferences';
 import { supabase } from '@/lib/supabase';
 
-type TargetMode = 'auto' | 'manual';
 const modeStorageKey = 'nutritionTargetsMode';
 
 function numberValue(value: string) {
@@ -30,7 +30,7 @@ export default function SettingsScreen() {
   const inputColor = isDarkMode ? '#1B2C26' : '#F7FAF9';
 
   const [profile, setProfile] = useState<GoalProfile | null>(null);
-  const [mode, setMode] = useState<TargetMode>('auto');
+  const [mode, setMode] = useState<NutritionTargetsMode>('auto');
   const [calories, setCalories] = useState('2000');
   const [protein, setProtein] = useState('100');
   const [carbs, setCarbs] = useState('250');
@@ -63,18 +63,28 @@ export default function SettingsScreen() {
     let active = true;
     (async () => {
       let cached: GoalProfile | null = null;
-      let targetMode: TargetMode = 'auto';
+      let targetMode: NutritionTargetsMode = 'auto';
+      let localPreferences: UserPreferences | null = null;
       try {
-        const [savedHour, savedMode, cachedProfile] = await Promise.all([
+        const [savedHour, savedMode, cachedProfile, cachedPreferences] = await Promise.all([
           AsyncStorage.getItem('notificationHour'),
           AsyncStorage.getItem(modeStorageKey),
           user ? readCachedGoalProfile(user.id) : Promise.resolve(null),
+          user ? readCachedUserPreferences(user.id) : Promise.resolve(null),
         ]);
         cached = cachedProfile;
-        targetMode = savedMode === 'manual' ? 'manual' : 'auto';
+        localPreferences = cachedPreferences ?? {
+          language: i18n.resolvedLanguage?.startsWith('en') ? 'en' : i18n.resolvedLanguage?.startsWith('pt') ? 'pt' : 'es',
+          theme,
+          reminderTime: savedHour ?? '13:00',
+          nutritionTargetsMode: savedMode === 'manual' ? 'manual' : 'auto',
+        };
+        targetMode = localPreferences.nutritionTargetsMode;
         if (active) {
           setMode(targetMode);
-          if (savedHour) setNotificationHour(savedHour);
+          setNotificationHour(localPreferences.reminderTime);
+          if (localPreferences.theme !== theme) setTheme(localPreferences.theme);
+          if (!i18n.resolvedLanguage?.startsWith(localPreferences.language)) await i18n.changeLanguage(localPreferences.language);
           if (cached) {
             setProfile(cached);
             const suggested = calculateMacroRecommendation({ calories: cached.calorieGoal ?? 2000, weightKg: cached.currentWeightKg, heightCm: cached.heightCm, goal: cached.goal, diet: cached.diet });
@@ -90,11 +100,21 @@ export default function SettingsScreen() {
       if (!user || !active) return;
       setSyncing(true);
       try {
-        const remote = await syncGoalProfile(user.id);
+        const [remote, remotePreferences] = await Promise.all([
+          syncGoalProfile(user.id),
+          syncUserPreferences(user.id, localPreferences ?? undefined),
+        ]);
+        targetMode = remotePreferences.nutritionTargetsMode;
         if (active && remote) {
           setProfile(remote);
           const suggested = calculateMacroRecommendation({ calories: remote.calorieGoal ?? 2000, weightKg: remote.currentWeightKg, heightCm: remote.heightCm, goal: remote.goal, diet: remote.diet });
           applyTargets(targetMode === 'auto' ? suggested : { calories: remote.calorieGoal ?? suggested.calories, protein: remote.proteinGoalG ?? suggested.protein, carbs: remote.carbsGoalG ?? suggested.carbs, fats: remote.fatGoalG ?? suggested.fats });
+        }
+        if (active) {
+          setMode(remotePreferences.nutritionTargetsMode);
+          setNotificationHour(remotePreferences.reminderTime);
+          if (remotePreferences.theme !== theme) setTheme(remotePreferences.theme);
+          if (!i18n.resolvedLanguage?.startsWith(remotePreferences.language)) await i18n.changeLanguage(remotePreferences.language);
         }
       } catch {
         // Cached values remain available while the network is unavailable.
@@ -123,9 +143,14 @@ export default function SettingsScreen() {
   const handleSave = async () => {
     const values = [calories, protein, carbs, fats].map(numberValue);
     if (!user || values.some((value) => !Number.isFinite(value) || value <= 0)) return Alert.alert(t('error'), t('please_enter_valid_numbers'));
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(notificationHour)) return Alert.alert(t('error'), t('invalid_reminder_time'));
     setSaving(true);
     try {
-      await updateNutritionTargets(user.id, { calorieGoal: values[0], proteinGoalG: values[1], carbsGoalG: values[2], fatGoalG: values[3] });
+      const language = i18n.resolvedLanguage?.startsWith('en') ? 'en' : i18n.resolvedLanguage?.startsWith('pt') ? 'pt' : 'es';
+      await Promise.all([
+        updateNutritionTargets(user.id, { calorieGoal: values[0], proteinGoalG: values[1], carbsGoalG: values[2], fatGoalG: values[3] }),
+        saveUserPreferences(user.id, { language, theme, reminderTime: notificationHour, nutritionTargetsMode: mode }),
+      ]);
       await Promise.all([AsyncStorage.setItem('notificationHour', notificationHour), AsyncStorage.setItem(modeStorageKey, mode)]);
       Alert.alert(t('saved'), t('settings_saved'));
     } catch { Alert.alert(t('error'), t('error_saving_settings')); }
