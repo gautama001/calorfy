@@ -11,7 +11,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { calculateMacroRecommendation, readCachedGoalProfile, syncGoalProfile, updateNutritionTargets, type GoalProfile } from '@/lib/goals';
 import i18n from '@/i18n';
 import { clearUserLocalData } from '@/lib/localData';
-import { readCachedUserPreferences, saveUserPreferences, syncUserPreferences, type NutritionTargetsMode, type UserPreferences } from '@/lib/preferences';
+import { PreferenceConflictError, readCachedUserPreferences, reloadRemoteUserPreferences, saveUserPreferences, syncUserPreferences, type NutritionTargetsMode, type UserPreferences } from '@/lib/preferences';
 import { supabase } from '@/lib/supabase';
 
 const modeStorageKey = 'nutritionTargetsMode';
@@ -117,7 +117,19 @@ export default function SettingsScreen() {
           if (remotePreferences.theme !== theme) setTheme(remotePreferences.theme);
           if (!i18n.resolvedLanguage?.startsWith(remotePreferences.language)) await i18n.changeLanguage(remotePreferences.language);
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof PreferenceConflictError && active) {
+          try {
+            const remotePreferences = await reloadRemoteUserPreferences(user.id);
+            setMode(remotePreferences.nutritionTargetsMode);
+            setNotificationHour(remotePreferences.reminderTime);
+            if (remotePreferences.theme !== theme) setTheme(remotePreferences.theme);
+            if (!i18n.resolvedLanguage?.startsWith(remotePreferences.language)) await i18n.changeLanguage(remotePreferences.language);
+            Alert.alert(t('preferences_conflict_title'), t('preferences_conflict_message'));
+          } catch {
+            // Cached values remain available until the next online sync.
+          }
+        }
         // Cached values remain available while the network is unavailable.
       } finally {
         if (active) setSyncing(false);
@@ -148,13 +160,22 @@ export default function SettingsScreen() {
     setSaving(true);
     try {
       const language = i18n.resolvedLanguage?.startsWith('en') ? 'en' : i18n.resolvedLanguage?.startsWith('pt') ? 'pt' : 'es';
-      await Promise.all([
-        updateNutritionTargets(user.id, { calorieGoal: values[0], proteinGoalG: values[1], carbsGoalG: values[2], fatGoalG: values[3] }),
-        saveUserPreferences(user.id, { language, theme, reminderTime: notificationHour, nutritionTargetsMode: mode }),
-      ]);
+      const savedPreferences = await saveUserPreferences(user.id, { language, theme, reminderTime: notificationHour, nutritionTargetsMode: mode });
+      await updateNutritionTargets(user.id, { calorieGoal: values[0], proteinGoalG: values[1], carbsGoalG: values[2], fatGoalG: values[3] });
       await Promise.all([AsyncStorage.setItem('notificationHour', notificationHour), AsyncStorage.setItem(modeStorageKey, mode)]);
-      Alert.alert(t('saved'), t('settings_saved'));
-    } catch { Alert.alert(t('error'), t('error_saving_settings')); }
+      Alert.alert(t('saved'), t(savedPreferences.syncStatus === 'pending' ? 'settings_saved_offline' : 'settings_saved'));
+    } catch (error) {
+      if (error instanceof PreferenceConflictError) {
+        try {
+          const remotePreferences = await reloadRemoteUserPreferences(user.id);
+          setMode(remotePreferences.nutritionTargetsMode);
+          setNotificationHour(remotePreferences.reminderTime);
+          if (remotePreferences.theme !== theme) setTheme(remotePreferences.theme);
+          if (!i18n.resolvedLanguage?.startsWith(remotePreferences.language)) await i18n.changeLanguage(remotePreferences.language);
+        } catch { /* The next sync will retry loading the remote value. */ }
+        Alert.alert(t('preferences_conflict_title'), t('preferences_conflict_message'));
+      } else Alert.alert(t('error'), t('error_saving_settings'));
+    }
     finally { setSaving(false); }
   };
 
