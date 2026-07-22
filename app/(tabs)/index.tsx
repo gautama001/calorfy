@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   ActivityIndicator,
@@ -74,6 +74,8 @@ export default function TodayScreen() {
   const [recipeYieldLabel, setRecipeYieldLabel] = useState(() => t('servings').toLowerCase());
   const [savingRecipe, setSavingRecipe] = useState(false);
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+  const [syncState, setSyncState] = useState<'current' | 'syncing' | 'offline'>('syncing');
+  const loadSequence = useRef(0);
 
   const applyMeals = (dayMeals: DiaryMeal[]) => {
     setMeals(dayMeals);
@@ -101,43 +103,62 @@ export default function TodayScreen() {
     });
   };
 
-  const loadAll = async (date: string) => {
-    if (!user) return applyMeals([]);
+  const loadAll = async (date: string, { useCache = true }: { useCache?: boolean } = {}) => {
+    const sequence = ++loadSequence.current;
+    const isLatest = () => sequence === loadSequence.current;
+    if (!user) {
+      if (isLatest()) {
+        applyMeals([]);
+        setSyncState('current');
+      }
+      return;
+    }
 
-    const [cachedMeals, cachedGoals, cachedRecipes] = await Promise.all([
-      readCachedDiaryDay(user.id, date),
-      readCachedGoalProfile(user.id),
-      readCachedPersonalRecipes(user.id),
-    ]);
-    applyMeals(cachedMeals);
-    applyTargets(cachedGoals);
-    setRecipes(cachedRecipes);
+    setSyncState('syncing');
+
+    if (useCache) {
+      const [cachedMeals, cachedGoals, cachedRecipes] = await Promise.all([
+        readCachedDiaryDay(user.id, date),
+        readCachedGoalProfile(user.id),
+        readCachedPersonalRecipes(user.id),
+      ]);
+      if (!isLatest()) return;
+      applyMeals(cachedMeals);
+      applyTargets(cachedGoals);
+      setRecipes(cachedRecipes);
+    }
     try {
-      const [remoteMeals, remoteShortcuts, remoteRecipes, remoteGoals] = await Promise.all([
-        syncDiaryDay(user.id, date),
+      const remoteMeals = await syncDiaryDay(user.id, date);
+      if (!isLatest()) return;
+      applyMeals(remoteMeals);
+      setSyncState('current');
+
+      const [remoteShortcuts, remoteRecipes, remoteGoals] = await Promise.allSettled([
         listDiaryShortcuts(user.id),
         listPersonalRecipes(user.id),
         syncGoalProfile(user.id),
       ]);
-      applyMeals(remoteMeals);
-      setShortcuts(remoteShortcuts);
-      setRecipes(remoteRecipes);
-      applyTargets(remoteGoals);
+      if (!isLatest()) return;
+      if (remoteShortcuts.status === 'fulfilled') setShortcuts(remoteShortcuts.value);
+      if (remoteRecipes.status === 'fulfilled') setRecipes(remoteRecipes.value);
+      if (remoteGoals.status === 'fulfilled') applyTargets(remoteGoals.value);
     } catch {
-      // Cached data remains usable while the connection is unavailable.
+      if (isLatest()) setSyncState('offline');
     }
   };
 
   useFocusEffect(useCallback(() => {
-    loadAll(selectedDate);
+    void loadAll(selectedDate);
+    return () => { loadSequence.current += 1; };
   }, [selectedDate, user?.id]));
 
   const updateMealCategory = async (meal: DiaryMeal, newCategory: MealCategory) => {
     if (!user) return;
     try {
       await updateDiaryMealCategory(user.id, meal.id, newCategory);
+      applyMeals(meals.map((current) => current.id === meal.id ? { ...current, category: newCategory } : current));
       setModalMeal(null);
-      await loadAll(selectedDate);
+      await loadAll(selectedDate, { useCache: false });
     } catch {
       Alert.alert(t('move_meal_error'), t('connection_retry'));
     }
@@ -147,9 +168,10 @@ export default function TodayScreen() {
     if (!user) return;
     try {
       await deleteDiaryMeal(user.id, meal.id);
+      applyMeals(meals.filter((current) => current.id !== meal.id));
       setDeleteCandidate(null);
       setModalMeal(null);
-      await loadAll(selectedDate);
+      await loadAll(selectedDate, { useCache: false });
     } catch {
       Alert.alert(t('delete_meal_error'), t('connection_retry'));
     }
@@ -170,7 +192,8 @@ export default function TodayScreen() {
     try {
       await updateDiaryMealFavorite(user.id, meal.id, nextFavorite);
       setModalMeal({ ...meal, isFavorite: nextFavorite });
-      await loadAll(selectedDate);
+      applyMeals(meals.map((current) => current.id === meal.id ? { ...current, isFavorite: nextFavorite } : current));
+      await loadAll(selectedDate, { useCache: false });
     } catch {
       Alert.alert(t('favorite_update_error'), t('connection_retry'));
     }
@@ -230,6 +253,23 @@ export default function TodayScreen() {
     <View style={[styles.wrap, { backgroundColor }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <CalendarWeek onSelectDate={setSelectedDate} />
+        {syncState === 'syncing' ? (
+          <View style={styles.syncingRow} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="small" color="#00A77D" />
+            <Text style={[styles.syncingText, { color: mutedColor }]}>{t('syncing_diary')}</Text>
+          </View>
+        ) : null}
+        {syncState === 'offline' ? (
+          <View style={[styles.syncBanner, { backgroundColor: softSurface, borderColor }]} accessibilityLiveRegion="polite">
+            <View style={styles.syncCopy}>
+              <Text style={[styles.syncTitle, { color: textColor }]}>{t('sync_pending_title')}</Text>
+              <Text style={[styles.syncBody, { color: mutedColor }]}>{t('sync_pending_body')}</Text>
+            </View>
+            <TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={() => void loadAll(selectedDate, { useCache: false })}>
+              <Text style={styles.retryText}>{t('retry')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <CalorieBar current={calories} limit={dailyLimit} />
         <View style={styles.macros}>
           {(['protein', 'carbs', 'fat'] as const).map((m) => {
@@ -296,7 +336,7 @@ export default function TodayScreen() {
       <AddFoodModal
         visible={showAddFoodModal}
         onClose={() => { setShowAddFoodModal(false); setRepeatMeal(null); setEditingMealId(null); }}
-        onSaved={() => loadAll(selectedDate)}
+        onSaved={() => loadAll(selectedDate, { useCache: false })}
         shortcuts={shortcuts}
         recipes={recipes}
         initialMeal={repeatMeal}
@@ -410,6 +450,14 @@ export default function TodayScreen() {
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   scroll: { padding: 20, flexGrow: 0.1 },
+  syncingRow: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 },
+  syncingText: { fontSize: 12, fontWeight: '700' },
+  syncBanner: { borderWidth: 1, borderRadius: 15, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, marginBottom: 4 },
+  syncCopy: { flex: 1 },
+  syncTitle: { fontSize: 13, fontWeight: '900' },
+  syncBody: { fontSize: 11, lineHeight: 16, marginTop: 2 },
+  retryButton: { minHeight: 36, borderRadius: 18, backgroundColor: '#00A77D', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  retryText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
   macros: { flexDirection: 'row', justifyContent: 'space-between' },
   mcol: { alignItems: 'center', flex: 1 },
   rem: { fontSize: 12, marginTop: 6, fontWeight: '500' },
