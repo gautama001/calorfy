@@ -17,6 +17,7 @@ describe('local user data isolation', () => {
       `personal-recipes:v1:${userId}`,
       `weekly-plan:v1:${userId}:2026-07-20`,
       `preferences:v1:${userId}`,
+      `preferences:v2:${userId}`,
       `auth:password-recovery:${userId}`,
     ];
 
