@@ -64,6 +64,15 @@ Snapshots are intentional: later catalog corrections must not silently rewrite a
 - Goals, Settings and the daily dashboard consume the same target values.
 - Adaptive energy recommendations will be a separate versioned service; raw observations must remain separate from computed recommendations.
 
+### Professional collaboration
+
+- Calorfy Pro is a desktop-first web surface backed by the same identity and domain model as the consumer app.
+- A professional profile never implies access to client data.
+- Invitations are short-lived and stored only as hashes.
+- Relationships and client-owned scopes are explicit, revocable and audited.
+- Professional access to each health resource is added only after its consent UI and RLS tests exist.
+- See `docs/CALORFY_PRO_ARCHITECTURE.md` for the staged product and security boundary.
+
 ## Dependency rules
 
 1. Screens and components do not query Supabase or mutate AsyncStorage directly.
@@ -81,7 +90,7 @@ Snapshots are intentional: later catalog corrections must not silently rewrite a
 4. Product analytics, crash reporting and catalog coverage metrics.
 5. Natural-language/voice logging grounded in the food graph.
 6. HealthKit and adaptive energy estimation.
-7. Nutritionist workspace and verified correction workflow.
+7. Professional relationship, consent and verified correction workflow.
 
 ## Architecture decisions still pending
 
@@ -89,4 +98,4 @@ Snapshots are intentional: later catalog corrections must not silently rewrite a
 - Analytics/crash provider after privacy review.
 - Subscription provider and entitlement model.
 - Production rights review for every catalog source currently marked test-only or pending.
-- Whether professional tooling shares this repository or uses a separate web client.
+- Web framework and deployment target for the professional dashboard after the first workflow is validated.
