@@ -1,9 +1,10 @@
 import type { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useThemeContext } from '@/context/ThemeContext';
 import i18n from '@/i18n';
+import { clearUserLocalData } from '@/lib/localData';
 import { readCachedUserPreferences, syncUserPreferences, type UserPreferences } from '@/lib/preferences';
 import { supabase } from '@/lib/supabase';
 
@@ -24,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [preferencesReady, setPreferencesReady] = useState(false);
+  const lastUserId = useRef<string | null>(null);
 
   const applyPreferences = async (preferences: UserPreferences) => {
     setTheme(preferences.theme);
@@ -39,21 +41,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const acceptSession = (nextSession: Session | null) => {
+      const nextUserId = nextSession?.user.id ?? null;
+      const previousUserId = lastUserId.current;
+      if (previousUserId && previousUserId !== nextUserId) {
+        void clearUserLocalData(previousUserId);
+      }
+      lastUserId.current = nextUserId;
+      if (active) setSession(nextSession);
+    };
+
     supabase.auth.getSession()
       .then(({ data, error }) => {
         if (error) throw error;
-        if (active) setSession(data.session);
+        acceptSession(data.session);
       })
       .catch(() => {
-        if (active) setSession(null);
+        acceptSession(null);
       })
       .finally(() => {
         if (active) setLoading(false);
       });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setLoading(false);
+      acceptSession(nextSession);
+      if (active) setLoading(false);
     });
 
     return () => {

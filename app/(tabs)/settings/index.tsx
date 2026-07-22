@@ -10,6 +10,7 @@ import { useThemeContext } from '@/context/ThemeContext';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { calculateMacroRecommendation, readCachedGoalProfile, syncGoalProfile, updateNutritionTargets, type GoalProfile } from '@/lib/goals';
 import i18n from '@/i18n';
+import { clearUserLocalData } from '@/lib/localData';
 import { readCachedUserPreferences, saveUserPreferences, syncUserPreferences, type NutritionTargetsMode, type UserPreferences } from '@/lib/preferences';
 import { supabase } from '@/lib/supabase';
 
@@ -162,21 +163,14 @@ export default function SettingsScreen() {
     catch { Alert.alert(t('error'), t('error_changing_language')); }
   };
 
-  const clearPersonalCache = async () => {
-    if (!user) return;
-    const keys = await AsyncStorage.getAllKeys();
-    const personalKeys = keys.filter((key) =>
-      key.includes(user.id) || ['meals', 'dailySteps', 'dailyWater', 'reminderOn', 'notificationHour', modeStorageKey].includes(key),
-    );
-    if (personalKeys.length) await AsyncStorage.multiRemove(personalKeys);
-  };
-
   const signOut = async () => {
-    if (signingOut) return;
+    if (signingOut || !supabase || !user) return;
     setSigningOut(true);
     setAccountActionError(null);
     try {
-      await supabase?.auth.signOut({ scope: 'local' });
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+      await clearUserLocalData(user.id);
       setAccountAction(null);
       router.replace('/login');
     } catch {
@@ -193,7 +187,7 @@ export default function SettingsScreen() {
     try {
       const { error } = await supabase.functions.invoke('delete-account', { body: { confirmation: 'DELETE' } });
       if (error) throw error;
-      await clearPersonalCache();
+      await clearUserLocalData(user.id);
       await supabase.auth.signOut({ scope: 'local' });
       setAccountAction(null);
       router.replace({ pathname: '/login', params: { deleted: '1' } });
