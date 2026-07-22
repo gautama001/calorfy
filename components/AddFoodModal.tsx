@@ -46,6 +46,7 @@ type Props = {
   editingMealId?: string | null;
   recipes?: PersonalRecipe[];
   date?: string;
+  initialCategory?: MealCategory;
 };
 
 const categories: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
@@ -106,6 +107,7 @@ export default function AddFoodModal({
   editingMealId = null,
   recipes = [],
   date,
+  initialCategory = 'lunch',
 }: Props) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
@@ -157,6 +159,10 @@ export default function AddFoodModal({
   useEffect(() => {
     if (visible && initialMeal?.items.length) loadSavedMeal(initialMeal);
   }, [initialMeal?.id, visible]);
+
+  useEffect(() => {
+    if (visible && !initialMeal) setCategory(initialCategory);
+  }, [initialCategory, initialMeal, visible]);
 
   useEffect(() => {
     if (!visible || selectedFood) return;

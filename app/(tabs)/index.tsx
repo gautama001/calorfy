@@ -12,7 +12,8 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
 import CalendarWeek from '@/components/CalendarWeek';
 import CalorieBar from '@/components/CalorieBar';
 import MacroCircle from '@/components/MacroCircle';
@@ -50,6 +51,7 @@ function todayLocal() {
 
 export default function TodayScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { user } = useAuth();
   const { backgroundColor, textColor, cardColor, borderColor, isDarkMode } = useAppTheme();
   const mutedColor = isDarkMode ? '#A7BBB4' : '#666';
@@ -74,6 +76,7 @@ export default function TodayScreen() {
   const [recipeYieldLabel, setRecipeYieldLabel] = useState(() => t('servings').toLowerCase());
   const [savingRecipe, setSavingRecipe] = useState(false);
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+  const [addFoodCategory, setAddFoodCategory] = useState<MealCategory>('lunch');
   const [syncState, setSyncState] = useState<'current' | 'syncing' | 'offline'>('syncing');
   const loadSequence = useRef(0);
 
@@ -249,6 +252,15 @@ export default function TodayScreen() {
     color: rem < 0 ? '#FF6B6B' : '#00C896'
   });
 
+  const openAddFood = (category: MealCategory = 'lunch') => {
+    setRepeatMeal(null);
+    setEditingMealId(null);
+    setAddFoodCategory(category);
+    setShowAddFoodModal(true);
+  };
+
+  const isToday = selectedDate === todayLocal();
+
   return (
     <View style={[styles.wrap, { backgroundColor }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -290,19 +302,52 @@ export default function TodayScreen() {
           })}
         </View>
 
-        {categories.map((cat) => (
+        {meals.length === 0 ? syncState === 'current' ? (
+          <View style={[styles.emptyDiary, { backgroundColor: cardColor, borderColor }]}>
+            <View style={[styles.emptyDiaryIcon, { backgroundColor: softSurface }]}>
+              <Ionicons name="restaurant-outline" size={29} color="#00A77D" />
+            </View>
+            <Text style={[styles.emptyDiaryTitle, { color: textColor }]}>
+              {t(isToday ? 'empty_diary_today_title' : 'empty_diary_day_title')}
+            </Text>
+            <Text style={[styles.emptyDiaryBody, { color: mutedColor }]}>
+              {t(isToday ? 'empty_diary_today_body' : 'empty_diary_day_body')}
+            </Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.emptyDiaryPrimary} onPress={() => openAddFood()}>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.emptyDiaryPrimaryText}>{t('add_first_meal')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.emptyDiarySecondary} onPress={() => router.push('/diets')}>
+              <Text style={[styles.emptyDiarySecondaryText, { color: textColor }]}>{t('explore_recipe_ideas')}</Text>
+              <Ionicons name="arrow-forward" size={17} color="#00A77D" />
+            </TouchableOpacity>
+          </View>
+        ) : null : categories.map((cat) => (
           <View key={cat}>
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityState={{ expanded: expanded === cat }}
+              style={styles.categoryHeader}
               onPress={() => setExpanded(expanded === cat ? null : cat)}
             >
-              <Text style={[styles.sub, { color: textColor }]}>{t(cat)}</Text>
+              <View style={styles.categoryTitleRow}>
+                <Text style={[styles.sub, { color: textColor }]}>{t(cat)}</Text>
+                <View style={[styles.categoryCount, { backgroundColor: softSurface }]}>
+                  <Text style={[styles.categoryCountText, { color: mutedColor }]}>{meals.filter((meal) => meal.category === cat).length}</Text>
+                </View>
+              </View>
+              <Ionicons name={expanded === cat ? 'chevron-up' : 'chevron-down'} size={19} color={mutedColor} />
             </TouchableOpacity>
 
-            {expanded === cat && meals
-              .filter(meal => meal.category === cat)
-              .map((meal) => (
+            {expanded === cat && meals.filter(meal => meal.category === cat).length === 0 ? (
+              <TouchableOpacity accessibilityRole="button" style={[styles.emptyCategory, { borderColor }]} onPress={() => openAddFood(cat)}>
+                <Text style={[styles.emptyCategoryText, { color: mutedColor }]}>{t('empty_meal_category')}</Text>
+                <View style={styles.emptyCategoryAction}>
+                  <Ionicons name="add" size={16} color="#00A77D" />
+                  <Text style={styles.emptyCategoryActionText}>{t('add')}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : expanded === cat && meals.filter(meal => meal.category === cat).map((meal) => (
                 <TouchableOpacity accessibilityRole="button" key={meal.id} onPress={() => { setShowRecipeForm(false); setDeleteCandidate(null); setModalMeal(meal); }}>
                   <View style={[styles.card, { backgroundColor: cardColor, borderColor, borderWidth: 1 }]}>
                     {meal.image && (
@@ -328,7 +373,7 @@ export default function TodayScreen() {
         style={styles.fab}
         accessibilityRole="button"
         accessibilityLabel={t('add_food')}
-        onPress={() => { setRepeatMeal(null); setEditingMealId(null); setShowAddFoodModal(true); }}
+        onPress={() => openAddFood()}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
@@ -342,6 +387,7 @@ export default function TodayScreen() {
         initialMeal={repeatMeal}
         editingMealId={editingMealId}
         date={selectedDate}
+        initialCategory={addFoodCategory}
       />
 
       <Modal visible={!!modalMeal} transparent animationType="fade" onRequestClose={closeMealModal} accessibilityViewIsModal>
@@ -461,7 +507,23 @@ const styles = StyleSheet.create({
   macros: { flexDirection: 'row', justifyContent: 'space-between' },
   mcol: { alignItems: 'center', flex: 1 },
   rem: { fontSize: 12, marginTop: 6, fontWeight: '500' },
-  sub: { fontSize: 18, fontWeight: '600', marginTop: 24, marginBottom: 8, textTransform: 'capitalize' },
+  emptyDiary: { borderWidth: 1, borderRadius: 22, padding: 22, alignItems: 'center', marginTop: 24 },
+  emptyDiaryIcon: { width: 58, height: 58, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  emptyDiaryTitle: { fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 14 },
+  emptyDiaryBody: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 7, maxWidth: 390 },
+  emptyDiaryPrimary: { minHeight: 50, width: '100%', borderRadius: 25, backgroundColor: '#00A77D', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 20 },
+  emptyDiaryPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  emptyDiarySecondary: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4, paddingHorizontal: 14 },
+  emptyDiarySecondaryText: { fontSize: 14, fontWeight: '800' },
+  categoryHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 13 },
+  categoryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  categoryCount: { minWidth: 25, height: 25, paddingHorizontal: 7, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  categoryCountText: { fontSize: 12, fontWeight: '800' },
+  sub: { fontSize: 18, fontWeight: '700', textTransform: 'capitalize' },
+  emptyCategory: { minHeight: 58, borderWidth: 1, borderStyle: 'dashed', borderRadius: 15, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  emptyCategoryText: { fontSize: 13 },
+  emptyCategoryAction: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  emptyCategoryActionText: { color: '#00A77D', fontSize: 13, fontWeight: '900' },
   card: { flexDirection: 'row', gap: 12, padding: 12, marginBottom: 10, borderRadius: 8 },
   mealName: { fontSize: 16, fontWeight: 'bold' },
   mealDetail: { fontSize: 14, color: '#666' },
