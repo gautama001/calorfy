@@ -33,6 +33,7 @@ import {
 import {
   createPersonalRecipeFromMeal,
   listPersonalRecipes,
+  readCachedPersonalRecipes,
   type PersonalRecipe,
 } from '@/lib/recipes';
 import { type GoalProfile, readCachedGoalProfile, syncGoalProfile } from '@/lib/goals';
@@ -103,12 +104,14 @@ export default function TodayScreen() {
   const loadAll = async (date: string) => {
     if (!user) return applyMeals([]);
 
-    const [cachedMeals, cachedGoals] = await Promise.all([
+    const [cachedMeals, cachedGoals, cachedRecipes] = await Promise.all([
       readCachedDiaryDay(user.id, date),
       readCachedGoalProfile(user.id),
+      readCachedPersonalRecipes(user.id),
     ]);
     applyMeals(cachedMeals);
     applyTargets(cachedGoals);
+    setRecipes(cachedRecipes);
     try {
       const [remoteMeals, remoteShortcuts, remoteRecipes, remoteGoals] = await Promise.all([
         syncDiaryDay(user.id, date),

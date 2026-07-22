@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import type { FoodSearchResult } from '@/lib/catalog';
 import type { DiaryFoodInput, DiaryMeal, DiaryMealItem, MealCategory } from '@/lib/diary';
 import { supabase } from '@/lib/supabase';
@@ -38,6 +40,7 @@ type RecipeRow = {
     protein_g: number | string;
     carbs_g: number | string;
     fat_g: number | string;
+    sort_order: number;
   }>;
 };
 
@@ -55,7 +58,7 @@ function mapRecipe(row: RecipeRow): PersonalRecipe {
     carbs: Number(row.carbs_g),
     fat: Number(row.fat_g),
     updatedAt: row.updated_at,
-    items: (row.meal_template_items ?? []).map((item) => ({
+    items: [...(row.meal_template_items ?? [])].sort((a, b) => a.sort_order - b.sort_order).map((item) => ({
       id: item.id,
       foodId: item.food_id,
       name: item.food_name,
@@ -68,6 +71,21 @@ function mapRecipe(row: RecipeRow): PersonalRecipe {
       fat: Number(item.fat_g),
     })),
   };
+}
+
+function cacheKey(userId: string) {
+  return `personal-recipes:v1:${userId}`;
+}
+
+export async function readCachedPersonalRecipes(userId: string) {
+  const value = await AsyncStorage.getItem(cacheKey(userId));
+  if (!value) return [];
+  try {
+    return JSON.parse(value) as PersonalRecipe[];
+  } catch {
+    await AsyncStorage.removeItem(cacheKey(userId));
+    return [];
+  }
 }
 
 function itemPayload(item: DiaryMealItem) {
@@ -104,9 +122,12 @@ export async function listPersonalRecipes(userId: string) {
     .from('meal_templates')
     .select(recipeSelect)
     .eq('user_id', userId)
+    .order('sort_order', { referencedTable: 'meal_template_items', ascending: true })
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  return (data as RecipeRow[]).map(mapRecipe);
+  const recipes = (data as RecipeRow[]).map(mapRecipe);
+  await AsyncStorage.setItem(cacheKey(userId), JSON.stringify(recipes));
+  return recipes;
 }
 
 export async function createPersonalRecipeFromMeal(
@@ -132,6 +153,8 @@ export async function createPersonalRecipeFromMeal(
 }
 
 export function personalRecipeToInputs(recipe: PersonalRecipe, consumedQuantity: number): DiaryFoodInput[] {
+  if (!Number.isFinite(recipe.yieldQuantity) || recipe.yieldQuantity <= 0) throw new Error('Invalid recipe yield');
+  if (!Number.isFinite(consumedQuantity) || consumedQuantity <= 0) throw new Error('Invalid consumed quantity');
   const scale = consumedQuantity / recipe.yieldQuantity;
   return recipe.items.map((item) => {
     const grams = item.grams * scale;

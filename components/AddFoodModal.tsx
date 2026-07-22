@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -87,6 +86,10 @@ function formattedQuantity(quantity: number) {
   return Number.isInteger(quantity) ? quantity.toFixed(0) : quantity.toFixed(1);
 }
 
+function parseDecimal(value: string) {
+  return Number(value.replace(',', '.'));
+}
+
 function mealDrafts(meal: DiaryMeal): DraftFood[] {
   return diaryMealToInputs(meal).map((item, index) => ({
     ...item,
@@ -118,6 +121,8 @@ export default function AddFoodModal({
   const [selectedRecipe, setSelectedRecipe] = useState<PersonalRecipe | null>(null);
   const [recipeQuantity, setRecipeQuantity] = useState('1');
   const [editingRecipe, setEditingRecipe] = useState<PersonalRecipe | null>(null);
+  const [recipeDeleteCandidate, setRecipeDeleteCandidate] = useState<PersonalRecipe | null>(null);
+  const [deletingRecipe, setDeletingRecipe] = useState(false);
   const [recipeEditName, setRecipeEditName] = useState('');
   const [recipeEditYield, setRecipeEditYield] = useState('1');
   const [recipeEditLabel, setRecipeEditLabel] = useState(() => t('servings').toLowerCase());
@@ -187,6 +192,7 @@ export default function AddFoodModal({
   }, [query, selectedFood, t, visible]);
 
   const numericQuantity = Math.max(Number(quantity.replace(',', '.')) || 0, 0);
+  const numericRecipeQuantity = Math.max(parseDecimal(recipeQuantity) || 0, 0);
   const currentDraft = selectedFood
     ? calculateDraft(selectedFood, numericQuantity, unit, editingDraftId ?? 'preview')
     : null;
@@ -205,17 +211,26 @@ export default function AddFoodModal({
     setQuery('');
     setResults([]);
     setSelectedFood(null);
+    setSelectedRecipe(null);
+    setRecipeQuantity('1');
+    setEditingRecipe(null);
+    setRecipeDeleteCandidate(null);
+    setDeletingRecipe(false);
+    setRecipeEditName('');
+    setRecipeEditYield('1');
+    setRecipeEditLabel(t('servings').toLowerCase());
     setEditingDraftId(null);
     setUnit('g');
     setQuantity('100');
     setDrafts([]);
+    setCategory('lunch');
     setSaveEventId(createDiaryClientEventId());
     setSearched(false);
     setError(null);
   };
 
   const close = () => {
-    if (saving) return;
+    if (saving || deletingRecipe) return;
     reset();
     onClose();
   };
@@ -241,6 +256,9 @@ export default function AddFoodModal({
       draftId: `edit-recipe-${recipe.id}-${recipe.items[index]?.id || index}`,
     }));
     setEditingRecipe(recipe);
+    setSelectedRecipe(null);
+    setSelectedFood(null);
+    setEditingDraftId(null);
     setRecipeEditName(recipe.name);
     setRecipeEditYield(String(recipe.yieldQuantity));
     setRecipeEditLabel(recipe.yieldLabel);
@@ -252,27 +270,27 @@ export default function AddFoodModal({
   };
 
   const confirmDeleteRecipe = (recipe: PersonalRecipe) => {
-    if (!user) return;
-    Alert.alert(t('delete_recipe_title'), t('delete_recipe_body', { name: recipe.name }), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deletePersonalRecipe(user.id, recipe.id);
-            await onSaved();
-          } catch {
-            setError(t('delete_recipe_error'));
-          }
-        },
-      },
-    ]);
+    if (user) setRecipeDeleteCandidate(recipe);
+  };
+
+  const deleteRecipe = async () => {
+    if (!user || !recipeDeleteCandidate || deletingRecipe) return;
+    setDeletingRecipe(true);
+    setError(null);
+    try {
+      await deletePersonalRecipe(user.id, recipeDeleteCandidate.id);
+      setRecipeDeleteCandidate(null);
+      await onSaved();
+    } catch {
+      setError(t('delete_recipe_error'));
+    } finally {
+      setDeletingRecipe(false);
+    }
   };
 
   const stageRecipe = () => {
     if (!selectedRecipe) return;
-    const consumed = Number(recipeQuantity.replace(',', '.'));
+    const consumed = parseDecimal(recipeQuantity);
     if (!Number.isFinite(consumed) || consumed <= 0 || consumed > selectedRecipe.yieldQuantity) {
       return setError(t('recipe_quantity_range', { max: selectedRecipe.yieldQuantity }));
     }
@@ -402,7 +420,20 @@ export default function AddFoodModal({
               </TouchableOpacity>
             </View>
 
-            {selectedFood && currentDraft ? (
+            {recipeDeleteCandidate ? (
+              <View style={styles.recipeDeleteConfirm} accessibilityLiveRegion="polite">
+                <View style={[styles.recipeDeleteIcon, { backgroundColor: isDarkMode ? '#3A211F' : '#FCEDEA' }]}><Text style={styles.recipeDeleteIconText}>🗑️</Text></View>
+                <Text style={[styles.recipeDeleteTitle, { color: textColor }]}>{t('delete_recipe_title')}</Text>
+                <Text style={[styles.recipeDeleteBody, { color: mutedColor }]}>{t('delete_recipe_body', { name: recipeDeleteCandidate.name })}</Text>
+                {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+                <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: deletingRecipe, busy: deletingRecipe }} style={[styles.recipeDeleteButton, deletingRecipe && styles.disabled]} onPress={() => void deleteRecipe()} disabled={deletingRecipe}>
+                  {deletingRecipe ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.recipeDeleteButtonText}>{t('delete')}</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" style={[styles.recipeDeleteCancel, { borderColor }]} onPress={() => { setRecipeDeleteCandidate(null); setError(null); }} disabled={deletingRecipe}>
+                  <Text style={[styles.recipeDeleteCancelText, { color: textColor }]}>{t('cancel')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : selectedFood && currentDraft ? (
               <>
                 <TouchableOpacity accessibilityRole="button" hitSlop={8} onPress={() => { setSelectedFood(null); setEditingDraftId(null); }}>
                   <Text style={styles.back}>‹ {t('back_to_meal')}</Text>
@@ -455,14 +486,14 @@ export default function AddFoodModal({
                   <Text style={[styles.quantityUnit, { color: mutedColor }]}>{selectedRecipe.yieldLabel}</Text>
                 </View>
                 <View style={styles.steps}>
-                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(Math.max(0.1, (Number(recipeQuantity) || 1) - 1)))}><Text style={[styles.stepText, { color: textColor }]}>−1</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity('1')}><Text style={[styles.stepText, { color: textColor }]}>1</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(Math.min(selectedRecipe.yieldQuantity, (Number(recipeQuantity) || 0) + 1)))}><Text style={[styles.stepText, { color: textColor }]}>+1</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(selectedRecipe.yieldQuantity))}><Text style={[styles.stepText, { color: textColor }]}>{t('all')}</Text></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(Math.max(0.1, (numericRecipeQuantity || 1) - 1)))}><Text style={[styles.stepText, { color: textColor }]}>−1</Text></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity('1')}><Text style={[styles.stepText, { color: textColor }]}>1</Text></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(Math.min(selectedRecipe.yieldQuantity, numericRecipeQuantity + 1)))}><Text style={[styles.stepText, { color: textColor }]}>+1</Text></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" style={[styles.stepButton, { backgroundColor: softColor }]} onPress={() => setRecipeQuantity(String(selectedRecipe.yieldQuantity))}><Text style={[styles.stepText, { color: textColor }]}>{t('all')}</Text></TouchableOpacity>
                 </View>
                 <View style={styles.macroCard}>
-                  <Text style={styles.calories}>{Math.round(selectedRecipe.calories * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity))} kcal</Text>
-                  <Text style={styles.macroText}>P {(selectedRecipe.protein * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity)).toFixed(1)} g · C {(selectedRecipe.carbs * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity)).toFixed(1)} g · G {(selectedRecipe.fat * (Math.max(Number(recipeQuantity) || 0, 0) / selectedRecipe.yieldQuantity)).toFixed(1)} g</Text>
+                  <Text style={styles.calories}>{Math.round(selectedRecipe.calories * (numericRecipeQuantity / selectedRecipe.yieldQuantity))} kcal</Text>
+                  <Text style={styles.macroText}>P {(selectedRecipe.protein * (numericRecipeQuantity / selectedRecipe.yieldQuantity)).toFixed(1)} g · C {(selectedRecipe.carbs * (numericRecipeQuantity / selectedRecipe.yieldQuantity)).toFixed(1)} g · G {(selectedRecipe.fat * (numericRecipeQuantity / selectedRecipe.yieldQuantity)).toFixed(1)} g</Text>
                 </View>
                 {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
                 <TouchableOpacity accessibilityRole="button" style={styles.stageButton} onPress={stageRecipe}>
@@ -491,15 +522,15 @@ export default function AddFoodModal({
                       const suffix = draft.unit === 'tbsp' ? t('tbsp_short') : draft.unit;
                       return (
                         <View key={draft.draftId} style={[styles.draftCard, { backgroundColor: surfaceColor, borderColor }]}>
-                          <TouchableOpacity style={styles.draftInfo} onPress={() => editDraft(draft)}>
+                          <TouchableOpacity accessibilityRole="button" style={styles.draftInfo} onPress={() => editDraft(draft)}>
                             <Text style={[styles.draftName, { color: textColor }]}>{draft.food.display_name}</Text>
                             <Text style={[styles.draftMacros, { color: mutedColor }]}>{Math.round(draft.calories)} kcal · P {draft.protein.toFixed(1)} · C {draft.carbs.toFixed(1)} · G {draft.fat.toFixed(1)}</Text>
                           </TouchableOpacity>
                           <View style={styles.draftControls}>
-                            <TouchableOpacity style={[styles.roundButton, { backgroundColor: softColor }]} onPress={() => adjustDraft(draft, -1)}><Text style={[styles.roundText, { color: textColor }]}>−</Text></TouchableOpacity>
+                            <TouchableOpacity accessibilityRole="button" style={[styles.roundButton, { backgroundColor: softColor }]} onPress={() => adjustDraft(draft, -1)}><Text style={[styles.roundText, { color: textColor }]}>−</Text></TouchableOpacity>
                             <Text style={[styles.draftQuantity, { color: textColor }]}>{formattedQuantity(draft.quantity)} {suffix}</Text>
-                            <TouchableOpacity style={[styles.roundButton, { backgroundColor: softColor }]} onPress={() => adjustDraft(draft, 1)}><Text style={[styles.roundText, { color: textColor }]}>+</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => setDrafts((current) => current.filter((item) => item.draftId !== draft.draftId))}>
+                            <TouchableOpacity accessibilityRole="button" style={[styles.roundButton, { backgroundColor: softColor }]} onPress={() => adjustDraft(draft, 1)}><Text style={[styles.roundText, { color: textColor }]}>+</Text></TouchableOpacity>
+                            <TouchableOpacity accessibilityRole="button" onPress={() => setDrafts((current) => current.filter((item) => item.draftId !== draft.draftId))}>
                               <Text style={styles.removeText}>{t('remove')}</Text>
                             </TouchableOpacity>
                           </View>
@@ -536,14 +567,14 @@ export default function AddFoodModal({
                         <Text style={[styles.memorySubtitle, { color: mutedColor }]}>{t('recipe_consumption_hint')}</Text>
                         {recipes.map((recipe) => (
                           <View key={recipe.id} style={[styles.memoryCard, { backgroundColor: surfaceColor, borderColor }]}>
-                            <TouchableOpacity style={styles.memoryCopy} onPress={() => chooseRecipe(recipe)}>
+                            <TouchableOpacity accessibilityRole="button" style={styles.memoryCopy} onPress={() => chooseRecipe(recipe)}>
                               <Text style={[styles.memoryName, { color: textColor }]} numberOfLines={2}>{recipe.name}</Text>
                               <Text style={[styles.memoryMeta, { color: mutedColor }]}>{t('yields')} {recipe.yieldQuantity} {recipe.yieldLabel} · {Math.round(recipe.calories / recipe.yieldQuantity)} kcal {t('per_unit')}</Text>
                             </TouchableOpacity>
                             <View style={styles.recipeActions}>
-                              <TouchableOpacity onPress={() => chooseRecipe(recipe)}><Text style={styles.memoryAction}>{t('use')}</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => beginRecipeEdit(recipe)}><Text style={[styles.recipeEditAction, { color: mutedColor }]}>{t('edit')}</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => confirmDeleteRecipe(recipe)}><Text style={styles.recipeDeleteAction}>×</Text></TouchableOpacity>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => chooseRecipe(recipe)}><Text style={styles.memoryAction}>{t('use')}</Text></TouchableOpacity>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => beginRecipeEdit(recipe)}><Text style={[styles.recipeEditAction, { color: mutedColor }]}>{t('edit')}</Text></TouchableOpacity>
+                              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('delete')} onPress={() => confirmDeleteRecipe(recipe)}><Text style={styles.recipeDeleteAction}>×</Text></TouchableOpacity>
                             </View>
                           </View>
                         ))}
@@ -677,6 +708,15 @@ const styles = StyleSheet.create({
   recipeActions: { alignItems: 'flex-end', gap: 7 },
   recipeEditAction: { color: '#557068', fontSize: 12, fontWeight: '800' },
   recipeDeleteAction: { color: '#B42318', fontSize: 20, fontWeight: '800', lineHeight: 18 },
+  recipeDeleteConfirm: { alignItems: 'center', paddingVertical: 18 },
+  recipeDeleteIcon: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  recipeDeleteIconText: { fontSize: 27 },
+  recipeDeleteTitle: { fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  recipeDeleteBody: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 9, marginBottom: 20, maxWidth: 390 },
+  recipeDeleteButton: { width: '100%', minHeight: 50, borderRadius: 25, backgroundColor: '#C23B32', alignItems: 'center', justifyContent: 'center' },
+  recipeDeleteButtonText: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  recipeDeleteCancel: { width: '100%', minHeight: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 9 },
+  recipeDeleteCancelText: { fontSize: 15, fontWeight: '800' },
   error: { color: '#B42318', textAlign: 'center', marginTop: 12 },
   empty: { color: '#557068', backgroundColor: '#E8F6F1', borderRadius: 14, padding: 14, marginTop: 14, lineHeight: 20 },
   results: { gap: 9, marginTop: 14 },

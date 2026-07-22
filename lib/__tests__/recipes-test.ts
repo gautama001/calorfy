@@ -47,4 +47,9 @@ describe('personal recipe portions', () => {
     expect(items.reduce((sum, item) => sum + item.calories, 0)).toBe(recipe.calories);
     expect(items.reduce((sum, item) => sum + item.grams, 0)).toBe(1200);
   });
+
+  it('rejects invalid yields and consumed quantities', () => {
+    expect(() => personalRecipeToInputs({ ...recipe, yieldQuantity: 0 }, 1)).toThrow('Invalid recipe yield');
+    expect(() => personalRecipeToInputs(recipe, 0)).toThrow('Invalid consumed quantity');
+  });
 });
