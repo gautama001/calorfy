@@ -32,6 +32,10 @@ export type ProfessionalInvitePreview = {
 export type ProfessionalRelationship = {
   id: string;
   professionalId: string;
+  professionalName: string;
+  profession: Profession;
+  verificationStatus: ProfessionalVerificationStatus;
+  organizationName: string | null;
   clientId: string;
   status: ProfessionalRelationshipStatus;
   startedAt: string;
@@ -56,14 +60,18 @@ type PermissionsRow = {
   share_photos: boolean;
 };
 
-type RelationshipRow = {
-  id: string;
+type ClientRelationshipRow = {
+  relationship_id: string;
   professional_id: string;
-  client_id: string;
-  status: ProfessionalRelationshipStatus;
+  professional_name: string;
+  profession: Profession;
+  verification_status: ProfessionalVerificationStatus;
+  organization_name: string | null;
   started_at: string;
-  ended_at: string | null;
-  professional_client_permissions: PermissionsRow | null;
+  share_diary: boolean;
+  share_weight: boolean;
+  share_goals: boolean;
+  share_photos: boolean;
 };
 
 function client() {
@@ -161,19 +169,25 @@ export async function acceptProfessionalInvite(token: string, permissions: Profe
 }
 
 export async function listProfessionalRelationships() {
-  const { data, error } = await client()
-    .from('professional_client_relationships')
-    .select('id,professional_id,client_id,status,started_at,ended_at,professional_client_permissions(share_diary,share_weight,share_goals,share_photos)')
-    .order('updated_at', { ascending: false });
+  const { data, error } = await client().rpc('get_client_professional_connections');
   if (error) throw error;
-  return (data as unknown as RelationshipRow[]).map((row) => ({
-    id: row.id,
+  return (data as ClientRelationshipRow[]).map((row) => ({
+    id: row.relationship_id,
     professionalId: row.professional_id,
-    clientId: row.client_id,
-    status: row.status,
+    professionalName: row.professional_name,
+    profession: row.profession,
+    verificationStatus: row.verification_status,
+    organizationName: row.organization_name,
+    clientId: '',
+    status: 'active' as const,
     startedAt: row.started_at,
-    endedAt: row.ended_at,
-    permissions: mapPermissions(row.professional_client_permissions),
+    endedAt: null,
+    permissions: mapPermissions({
+      share_diary: row.share_diary,
+      share_weight: row.share_weight,
+      share_goals: row.share_goals,
+      share_photos: row.share_photos,
+    }),
   } satisfies ProfessionalRelationship));
 }
 
