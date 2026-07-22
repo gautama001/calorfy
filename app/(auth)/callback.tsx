@@ -4,7 +4,7 @@ import { type Href, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { createSessionFromUrl, getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
+import { createSessionFromUrl, getAuthErrorMessage, getPostAuthPath, markPasswordRecoveryIntent } from '@/lib/auth';
 import { useAppTheme } from '@/hooks/useAppTheme';
 
 export default function AuthCallbackScreen() {
@@ -23,6 +23,7 @@ export default function AuthCallbackScreen() {
       .then(async (session) => {
         if (!active) return;
         if (!session) throw new Error('No se pudo iniciar la sesión.');
+        if (recovery) await markPasswordRecoveryIntent(session.user.id);
         router.replace(recovery ? '/reset-password' as Href : await getPostAuthPath(session.user.id));
       })
       .catch((callbackError) => {

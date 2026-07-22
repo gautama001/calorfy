@@ -1,10 +1,33 @@
 import type { EmailOtpType } from '@supabase/supabase-js';
 import type { TFunction } from 'i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 import { isGoalProfileComplete, readCachedGoalProfile, syncGoalProfile } from '@/lib/goals';
+
+const RECOVERY_INTENT_TTL_MS = 30 * 60 * 1000;
+
+function recoveryIntentKey(userId: string) {
+  return `auth:password-recovery:${userId}`;
+}
+
+export async function markPasswordRecoveryIntent(userId: string) {
+  await AsyncStorage.setItem(recoveryIntentKey(userId), String(Date.now() + RECOVERY_INTENT_TTL_MS));
+}
+
+export async function hasPasswordRecoveryIntent(userId: string) {
+  const value = await AsyncStorage.getItem(recoveryIntentKey(userId));
+  const expiresAt = Number(value);
+  if (Number.isFinite(expiresAt) && expiresAt > Date.now()) return true;
+  if (value) await AsyncStorage.removeItem(recoveryIntentKey(userId));
+  return false;
+}
+
+export async function clearPasswordRecoveryIntent(userId: string) {
+  await AsyncStorage.removeItem(recoveryIntentKey(userId));
+}
 
 export function getEmailRedirectTo(path = '/callback') {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {

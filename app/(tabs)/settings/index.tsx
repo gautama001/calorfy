@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { type Href, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/context/AuthContext';
@@ -40,6 +40,9 @@ export default function SettingsScreen() {
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [accountAction, setAccountAction] = useState<'signout' | 'delete' | null>(null);
+  const [accountActionError, setAccountActionError] = useState<string | null>(null);
 
   const recommendation = useMemo(() => calculateMacroRecommendation({
     calories: profile?.calorieGoal ?? (numberValue(calories) || 2000),
@@ -143,39 +146,43 @@ export default function SettingsScreen() {
     if (personalKeys.length) await AsyncStorage.multiRemove(personalKeys);
   };
 
-  const handleSignOut = () => Alert.alert(t('sign_out_title'), t('sign_out_body'), [
-    { text: t('cancel'), style: 'cancel' },
-    { text: t('sign_out'), style: 'destructive', onPress: async () => {
+  const signOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    setAccountActionError(null);
+    try {
       await supabase?.auth.signOut({ scope: 'local' });
+      setAccountAction(null);
       router.replace('/login');
-    } },
-  ]);
+    } catch {
+      setAccountActionError(t('auth_network_error'));
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   const deleteAccount = async () => {
     if (!supabase || !user) return;
     setDeleting(true);
+    setAccountActionError(null);
     try {
       const { error } = await supabase.functions.invoke('delete-account', { body: { confirmation: 'DELETE' } });
       if (error) throw error;
       await clearPersonalCache();
       await supabase.auth.signOut({ scope: 'local' });
-      Alert.alert(t('account_deleted'), t('account_deleted_body'));
-      router.replace('/login');
+      setAccountAction(null);
+      router.replace({ pathname: '/login', params: { deleted: '1' } });
     } catch {
-      Alert.alert(t('error'), t('account_delete_error'));
+      setAccountActionError(t('account_delete_error'));
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleDeleteAccount = () => Alert.alert(t('delete_account_title'), t('delete_account_body'), [
-    { text: t('cancel'), style: 'cancel' },
-    { text: t('delete_account_confirm'), style: 'destructive', onPress: deleteAccount },
-  ]);
-
   if (loading) return <View style={[styles.loading, { backgroundColor }]}><ActivityIndicator size="large" color="#00A77D" /></View>;
 
   return (
+    <>
     <ScrollView style={{ backgroundColor }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.eyebrow}>{t('settings_eyebrow').toUpperCase()}</Text>
       <View style={styles.titleRow}>
@@ -214,13 +221,33 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: textColor }]}>{t('account')}</Text>
         <Text style={[styles.accountEmail, { color: mutedColor }]}>{t('signed_in_as')} {user?.email ?? ''}</Text>
         <TouchableOpacity style={[styles.accountRow, { borderColor }]} onPress={() => router.push('/settings/support' as Href)}><Ionicons name="help-circle-outline" size={20} color="#00A77D" /><Text style={[styles.accountRowText, { color: textColor }]}>{t('support')}</Text><Ionicons name="chevron-forward" size={18} color={mutedColor} /></TouchableOpacity>
-        <TouchableOpacity style={[styles.accountRow, { borderColor }]} onPress={handleSignOut}><Ionicons name="log-out-outline" size={20} color="#D47B32" /><Text style={[styles.accountRowText, { color: textColor }]}>{t('sign_out')}</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount} disabled={deleting}>{deleting ? <ActivityIndicator color="#B42318" /> : <><Ionicons name="trash-outline" size={19} color="#B42318" /><Text style={styles.deleteText}>{t('delete_account')}</Text></>}</TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('sign_out')} style={[styles.accountRow, { borderColor }]} onPress={() => { setAccountActionError(null); setAccountAction('signout'); }}><Ionicons name="log-out-outline" size={20} color="#D47B32" /><Text style={[styles.accountRowText, { color: textColor }]}>{t('sign_out')}</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('delete_account')} style={styles.deleteButton} onPress={() => { setAccountActionError(null); setAccountAction('delete'); }} disabled={deleting}>{deleting ? <ActivityIndicator color="#B42318" /> : <><Ionicons name="trash-outline" size={19} color="#B42318" /><Text style={styles.deleteText}>{t('delete_account')}</Text></>}</TouchableOpacity>
         {deleting ? <Text style={styles.deletingText}>{t('deleting_account')}</Text> : null}
       </View>
 
       <TouchableOpacity style={[styles.saveButton, saving && { opacity: 0.65 }]} onPress={handleSave} disabled={saving}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <><Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" /><Text style={styles.saveText}>{t('save')}</Text></>}</TouchableOpacity>
     </ScrollView>
+
+    <Modal transparent visible={accountAction !== null} animationType="fade" onRequestClose={() => { if (!deleting && !signingOut) setAccountAction(null); }}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.modalCard, { backgroundColor: cardColor, borderColor }]}>
+          <View style={[styles.modalIcon, { backgroundColor: accountAction === 'delete' ? (isDarkMode ? '#3B201F' : '#FDECEA') : softColor }]}>
+            <Ionicons name={accountAction === 'delete' ? 'trash-outline' : 'log-out-outline'} size={26} color={accountAction === 'delete' ? '#B42318' : '#D47B32'} />
+          </View>
+          <Text style={[styles.modalTitle, { color: textColor }]}>{t(accountAction === 'delete' ? 'delete_account_title' : 'sign_out_title')}</Text>
+          <Text style={[styles.modalBody, { color: mutedColor }]}>{t(accountAction === 'delete' ? 'delete_account_body' : 'sign_out_body')}</Text>
+          {accountActionError ? <Text style={styles.modalError} accessibilityLiveRegion="polite">{accountActionError}</Text> : null}
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: deleting || signingOut, busy: deleting || signingOut }} style={[styles.modalPrimary, accountAction === 'delete' && styles.modalDanger, (deleting || signingOut) && styles.modalDisabled]} onPress={() => accountAction === 'delete' ? void deleteAccount() : void signOut()} disabled={deleting || signingOut}>
+            {deleting || signingOut ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.modalPrimaryText}>{t(accountAction === 'delete' ? 'delete_account_confirm' : 'sign_out')}</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={[styles.modalCancel, { borderColor }]} onPress={() => setAccountAction(null)} disabled={deleting || signingOut}>
+            <Text style={[styles.modalCancelText, { color: textColor }]}>{t('cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -283,4 +310,16 @@ const styles = StyleSheet.create({
   deletingText: { color: '#B42318', fontSize: 10, textAlign: 'center', marginTop: 7 },
   saveButton: { minHeight: 56, borderRadius: 17, backgroundColor: '#00A77D', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 3 },
   saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', padding: 22, alignItems: 'center', justifyContent: 'center' },
+  modalCard: { width: '100%', maxWidth: 430, borderWidth: 1, borderRadius: 24, padding: 21, alignItems: 'center' },
+  modalIcon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  modalTitle: { fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  modalBody: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8, marginBottom: 18 },
+  modalError: { color: '#B42318', fontSize: 13, lineHeight: 19, textAlign: 'center', marginBottom: 13 },
+  modalPrimary: { width: '100%', minHeight: 50, borderRadius: 25, backgroundColor: '#D47B32', alignItems: 'center', justifyContent: 'center' },
+  modalDanger: { backgroundColor: '#B42318' },
+  modalPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  modalCancel: { width: '100%', minHeight: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 9 },
+  modalCancelText: { fontSize: 14, fontWeight: '800' },
+  modalDisabled: { opacity: 0.6 },
 });

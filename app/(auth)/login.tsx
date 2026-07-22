@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
-import { type Href, useRouter } from 'expo-router';
+import { type Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
+import { clearPasswordRecoveryIntent, getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import AuthScreen from '@/components/AuthScreen';
@@ -17,6 +17,7 @@ export default function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { deleted } = useLocalSearchParams<{ deleted?: string }>();
 
   const handleLogin = async () => {
     if (!supabase || !isSupabaseConfigured) return setError(t('auth_setup_missing'));
@@ -31,6 +32,7 @@ export default function LoginScreen() {
       });
       if (loginError) throw loginError;
       if (!data.user) throw new Error(t('auth_session_failed'));
+      await clearPasswordRecoveryIntent(data.user.id);
       router.replace(await getPostAuthPath(data.user.id));
     } catch (loginError) {
       setError(getAuthErrorMessage(loginError, t));
@@ -45,6 +47,7 @@ export default function LoginScreen() {
       <Text style={[styles.title, { color: textColor }]}>{t('welcome_back')}</Text>
       <TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder="Email" placeholderTextColor={mutedColor} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
       <TextInput style={[styles.input, { backgroundColor: cardColor, borderColor, color: textColor }]} placeholder={t('password')} placeholderTextColor={mutedColor} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" onSubmitEditing={handleLogin} />
+      {deleted === '1' ? <Text style={styles.notice} accessibilityLiveRegion="polite">{t('account_deleted_body')}</Text> : null}
       {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitting, busy: submitting }} style={[styles.button, submitting && styles.disabled]} onPress={handleLogin} disabled={submitting}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('sign_in')}</Text>}
@@ -72,4 +75,5 @@ const styles = StyleSheet.create({
   secondaryButton: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#00A77D' },
   secondaryButtonText: { color: '#00A77D' },
   error: { color: '#B42318', textAlign: 'center', lineHeight: 20, marginBottom: 4 },
+  notice: { color: '#087A5E', backgroundColor: '#E2F4ED', borderRadius: 12, padding: 12, textAlign: 'center', lineHeight: 20, marginBottom: 4 },
 });

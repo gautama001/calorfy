@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from
 import { type Href, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { createSessionFromUrl, getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
+import { clearPasswordRecoveryIntent, createSessionFromUrl, getAuthErrorMessage, getPostAuthPath, hasPasswordRecoveryIntent, markPasswordRecoveryIntent } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import AuthScreen from '@/components/AuthScreen';
@@ -28,9 +28,13 @@ export default function ResetPasswordScreen() {
       try {
         if (!supabase) throw new Error('Supabase no está configurado.');
         const { data } = await supabase.auth.getSession();
-        if (!data.session && url) await createSessionFromUrl(url);
+        if (!data.session && url) {
+          const recoverySession = await createSessionFromUrl(url);
+          if (recoverySession && /(?:[?#&])type=recovery(?:&|$)/.test(url)) await markPasswordRecoveryIntent(recoverySession.user.id);
+        }
         const current = await supabase.auth.getSession();
         if (!current.data.session) throw new Error('El enlace venció o no es válido. Solicitá uno nuevo.');
+        if (!await hasPasswordRecoveryIntent(current.data.session.user.id)) throw new Error('El enlace venció o no es válido. Solicitá uno nuevo.');
         if (active) setReady(true);
       } catch (sessionError) { if (active) setError(getAuthErrorMessage(sessionError, t)); }
     })();
@@ -46,6 +50,7 @@ export default function ResetPasswordScreen() {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
       const { data } = await supabase.auth.getUser();
+      if (data.user) await clearPasswordRecoveryIntent(data.user.id);
       router.replace(data.user ? await getPostAuthPath(data.user.id) : '/login');
     } catch (updateError) { setError(getAuthErrorMessage(updateError, t)); }
     finally { setSubmitting(false); }
