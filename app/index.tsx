@@ -1,10 +1,11 @@
-import { View, Text, Image, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, View, Text, Image, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { useRef, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Redirect } from 'expo-router';
 
 import { useAuth } from '@/context/AuthContext';
+import { getPostAuthPath } from '@/lib/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,7 +14,8 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const router = useRouter();
   const { t } = useTranslation();
-  const { session } = useAuth();
+  const { session, user, loading } = useAuth();
+  const [postAuthPath, setPostAuthPath] = useState<'/(tabs)' | '/onboarding' | null>(null);
 
   const SLIDES = [
     {
@@ -38,8 +40,24 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [currentIndex]);
 
-  if (session) {
-    return <Redirect href="/(tabs)" />;
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setPostAuthPath(null);
+      return;
+    }
+    getPostAuthPath(user.id).then((path) => {
+      if (active) setPostAuthPath(path);
+    });
+    return () => { active = false; };
+  }, [user]);
+
+  if (loading || (session && !postAuthPath)) {
+    return <View style={styles.loading}><ActivityIndicator size="large" color="#00A77D" /></View>;
+  }
+
+  if (session && postAuthPath) {
+    return <Redirect href={postAuthPath} />;
   }
 
   return (
@@ -80,6 +98,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F7F5' },
   scrollContainer: {
     flexGrow: 0,
   },

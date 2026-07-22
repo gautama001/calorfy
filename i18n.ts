@@ -122,6 +122,9 @@ const en = {
   security: 'Security', recover_password: 'Recover password', recover_password_intro: 'Enter your email and we will send you a secure link.', reset_email_sent: 'If an account exists for that email, you will receive a link to create a new password.',
   send_link: 'Send link', back_to_sign_in: 'Back to sign in', validating_secure_link: 'Validating secure link…', new_password: 'New password', new_password_placeholder: 'New password (at least 8 characters)', save_password: 'Save password', request_another_link: 'Request another link',
   confirm_email_error: 'We could not confirm your email', confirming_account: 'Confirming your account…', confirming_account_intro: 'You will enter Calorfy in a few seconds.',
+  onboarding_title: 'Set up your plan', onboarding_intro: 'Tell us the essentials so Calorfy can calculate a useful starting point for you.',
+  onboarding_measurements: 'Your measurements', onboarding_preferences: 'Your goal and preferences', onboarding_invalid: 'Check your weight, height and age. Enter realistic values to continue.',
+  onboarding_calculation_note: 'We will estimate your sedentary energy needs and macros. You can edit every value later.', finish_setup: 'Create my plan', onboarding_save_error: 'We could not save your plan. Check your connection and try again.',
 };
 
 const es: typeof en = {
@@ -216,6 +219,9 @@ const es: typeof en = {
   security: 'Seguridad', recover_password: 'Recuperar contraseña', recover_password_intro: 'Ingresá tu email y te enviaremos un enlace seguro.', reset_email_sent: 'Si existe una cuenta con ese email, vas a recibir un enlace para crear una contraseña nueva.',
   send_link: 'Enviar enlace', back_to_sign_in: 'Volver al ingreso', validating_secure_link: 'Validando el enlace seguro…', new_password: 'Nueva contraseña', new_password_placeholder: 'Contraseña nueva (mínimo 8 caracteres)', save_password: 'Guardar contraseña', request_another_link: 'Solicitar otro enlace',
   confirm_email_error: 'No pudimos confirmar el email', confirming_account: 'Confirmando tu cuenta…', confirming_account_intro: 'En unos segundos vas a entrar a Calorfy.',
+  onboarding_title: 'Configurá tu plan', onboarding_intro: 'Contanos lo esencial para que Calorfy calcule un punto de partida útil para vos.',
+  onboarding_measurements: 'Tus medidas', onboarding_preferences: 'Tu objetivo y preferencias', onboarding_invalid: 'Revisá el peso, la altura y la edad. Ingresá valores realistas para continuar.',
+  onboarding_calculation_note: 'Vamos a estimar tu gasto sin ejercicio y tus macros. Después podés editar todos los valores.', finish_setup: 'Crear mi plan', onboarding_save_error: 'No pudimos guardar tu plan. Revisá tu conexión e intentá nuevamente.',
 };
 
 const pt: typeof en = {
@@ -310,6 +316,9 @@ const pt: typeof en = {
   security: 'Segurança', recover_password: 'Recuperar senha', recover_password_intro: 'Insira seu email e enviaremos um link seguro.', reset_email_sent: 'Se existir uma conta com esse email, você receberá um link para criar uma nova senha.',
   send_link: 'Enviar link', back_to_sign_in: 'Voltar para entrar', validating_secure_link: 'Validando o link seguro…', new_password: 'Nova senha', new_password_placeholder: 'Nova senha (mínimo de 8 caracteres)', save_password: 'Salvar senha', request_another_link: 'Solicitar outro link',
   confirm_email_error: 'Não foi possível confirmar seu email', confirming_account: 'Confirmando sua conta…', confirming_account_intro: 'Você entrará no Calorfy em alguns segundos.',
+  onboarding_title: 'Configure seu plano', onboarding_intro: 'Conte o essencial para o Calorfy calcular um ponto de partida útil para você.',
+  onboarding_measurements: 'Suas medidas', onboarding_preferences: 'Seu objetivo e preferências', onboarding_invalid: 'Revise peso, altura e idade. Insira valores realistas para continuar.',
+  onboarding_calculation_note: 'Vamos estimar seu gasto sem exercício e seus macros. Você poderá editar todos os valores depois.', finish_setup: 'Criar meu plano', onboarding_save_error: 'Não foi possível salvar seu plano. Verifique a conexão e tente novamente.',
 };
 
 i18n

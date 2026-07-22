@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from
 import { type Href, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { getAuthErrorMessage } from '@/lib/auth';
+import { getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import AuthScreen from '@/components/AuthScreen';
@@ -25,12 +25,13 @@ export default function LoginScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
       if (loginError) throw loginError;
-      router.replace('/(tabs)');
+      if (!data.user) throw new Error(t('auth_session_failed'));
+      router.replace(await getPostAuthPath(data.user.id));
     } catch (loginError) {
       setError(getAuthErrorMessage(loginError, t));
     } finally {

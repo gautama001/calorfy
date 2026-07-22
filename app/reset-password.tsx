@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from
 import { type Href, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { createSessionFromUrl, getAuthErrorMessage } from '@/lib/auth';
+import { createSessionFromUrl, getAuthErrorMessage, getPostAuthPath } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import AuthScreen from '@/components/AuthScreen';
@@ -45,7 +45,8 @@ export default function ResetPasswordScreen() {
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
-      router.replace('/(tabs)');
+      const { data } = await supabase.auth.getUser();
+      router.replace(data.user ? await getPostAuthPath(data.user.id) : '/login');
     } catch (updateError) { setError(getAuthErrorMessage(updateError, t)); }
     finally { setSubmitting(false); }
   };

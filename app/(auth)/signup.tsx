@@ -43,7 +43,7 @@ export default function SignupScreen() {
         },
       });
       if (signupError) throw signupError;
-      if (data.session) return router.replace('/(tabs)');
+      if (data.session) return router.replace('/onboarding');
       setConfirmationSent(true);
     } catch (signupError) {
       setError(getAuthErrorMessage(signupError, t));

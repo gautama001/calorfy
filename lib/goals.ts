@@ -24,6 +24,23 @@ export type GoalProfile = {
 
 export type WeightEntry = { date: string; weight: number };
 
+export function isGoalProfileComplete(profile: GoalProfile | null) {
+  return Boolean(
+    profile
+    && profile.currentWeightKg
+    && profile.targetWeightKg
+    && profile.heightCm
+    && profile.birthYear
+    && profile.sex
+    && profile.goal
+    && profile.diet
+    && profile.calorieGoal
+    && profile.proteinGoalG
+    && profile.carbsGoalG
+    && profile.fatGoalG,
+  );
+}
+
 export type MacroRecommendation = {
   calories: number;
   protein: number;
@@ -231,9 +248,9 @@ export async function readCachedWeightHistory(userId: string) {
   }
 }
 
-export async function syncGoalProfile(userId: string) {
+export async function syncGoalProfile(userId: string, { migrateLegacy = true }: { migrateLegacy?: boolean } = {}) {
   if (!supabase) throw new Error('Supabase no está configurado');
-  await migrateLegacyGoals(userId);
+  if (migrateLegacy) await migrateLegacyGoals(userId);
   const { data, error } = await supabase
     .from('user_goals')
     .select(goalColumns)

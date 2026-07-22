@@ -2,7 +2,21 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-import { calculateEnergyRecommendation, calculateMacroRecommendation, calculateWeightProgress, normalizeLegacyGoal, normalizeLegacySex } from '@/lib/goals';
+import { calculateEnergyRecommendation, calculateMacroRecommendation, calculateWeightProgress, isGoalProfileComplete, normalizeLegacyGoal, normalizeLegacySex } from '@/lib/goals';
+
+describe('goal onboarding', () => {
+  const completeProfile = {
+    currentWeightKg: 80, targetWeightKg: 72, startingWeightKg: 80, goalStartedOn: '2026-07-21',
+    heightCm: 175, birthYear: 1990, sex: 'male' as const, goal: 'lose' as const, diet: 'balanced' as const,
+    calorieGoal: 1900, proteinGoalG: 128, carbsGoalG: 190, fatGoalG: 70,
+  };
+
+  it('only treats a nutritionally configured profile as complete', () => {
+    expect(isGoalProfileComplete(completeProfile)).toBe(true);
+    expect(isGoalProfileComplete({ ...completeProfile, heightCm: null })).toBe(false);
+    expect(isGoalProfileComplete(null)).toBe(false);
+  });
+});
 
 describe('macro recommendations', () => {
   it('raises protein for a configured weight-loss goal', () => {

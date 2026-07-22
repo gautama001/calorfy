@@ -4,12 +4,30 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
+import { isGoalProfileComplete, readCachedGoalProfile, syncGoalProfile } from '@/lib/goals';
 
 export function getEmailRedirectTo(path = '/callback') {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return `${window.location.origin}${path}`;
   }
   return Linking.createURL(path);
+}
+
+export async function getPostAuthPath(userId: string) {
+  try {
+    const cached = await readCachedGoalProfile(userId);
+    if (isGoalProfileComplete(cached)) return '/(tabs)' as const;
+  } catch {
+    // A storage issue must not invalidate an otherwise valid remote session.
+  }
+  try {
+    const profile = await syncGoalProfile(userId, { migrateLegacy: false });
+    return isGoalProfileComplete(profile) ? '/(tabs)' as const : '/onboarding' as const;
+  } catch {
+    // An existing user must still be able to enter with a valid persisted
+    // session while temporarily offline. Screens retain their cached fallbacks.
+    return '/(tabs)' as const;
+  }
 }
 
 export async function createSessionFromUrl(url: string) {
